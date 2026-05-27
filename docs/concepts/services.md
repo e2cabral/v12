@@ -1,42 +1,73 @@
 # Services
 
-Resumo curto
+Services são o coração da lógica de negócio no V12. Eles são responsáveis por processar dados, aplicar regras de domínio, orquestrar repositórios e integrar-se com serviços externos.
 
-Services concentram regra de negócio e orquestram o fluxo da feature.
+## Responsabilidades
 
-## Quando usar
+Um Service bem desenhado deve:
 
-Sempre que uma operação passar de simples leitura/escrita HTTP.
+- **Centralizar a Lógica**: Evitar que regras de negócio vazem para controllers ou middlewares.
+- **Ser Independente de Transporte**: Não deve conhecer detalhes do protocolo HTTP (como `request` ou `reply`).
+- **Orquestrar Repositórios**: Combinar chamadas a múltiplos repositórios para completar uma transação.
+- **Emitir Eventos**: Notificar outras partes do sistema sobre mudanças de estado importantes.
+- **Gerenciar Erros de Domínio**: Lançar exceções claras que podem ser mapeadas para respostas HTTP.
 
-## Conceito
+## Definição e Injeção
 
-Services devem:
-
-- validar regras
-- orquestrar repositories
-- emitir eventos
-- lançar erros do domínio/aplicação
-
-## Exemplo rápido
+No V12, Services são classes TypeScript registradas no container de DI através de módulos.
 
 ```ts
-export class UsersService {
-  async createUser(input: CreateUserInput) {
-    return this.repository.create(input);
+import { Injectable, Logger } from 'v12';
+import { UsersRepository } from '../repositories/users.repository.js';
+
+export class CreateUserService {
+  constructor(
+    private repository: UsersRepository,
+    private logger: Logger
+  ) {}
+
+  async execute(data: CreateUserDTO) {
+    this.logger.info({ email: data.email }, 'Iniciando criação de usuário');
+    
+    const existing = await this.repository.findByEmail(data.email);
+    if (existing) {
+      throw new BusinessError('Usuário já existe');
+    }
+
+    return this.repository.create(data);
   }
 }
 ```
 
-## Explicação completa
+## Registro no Módulo
 
-No `v12`, controller não é o lugar da regra. O service existe para manter o domínio centralizado e testável.
+Para que um Service possa ser injetado, ele deve ser listado nos `providers` de um módulo.
 
-## Anti-patterns
+```ts
+export const UsersModule = defineModule({
+  name: 'users',
+  providers: [
+    CreateUserService,
+    UsersRepository
+  ]
+});
+```
 
-- service sabendo detalhes de `reply`
-- service acoplando a schema HTTP
+## Escopos de Service
+
+Por padrão, todos os Services no V12 são **Singletons** por módulo (uma única instância por container). 
+
+Se você precisar de um Service que seja recriado a cada requisição (por exemplo, para manter estado específico da request), você pode usar o `RequestContext` para resolver instâncias do container local da requisição.
+
+## Boas Práticas
+
+- **Interface Única**: Prefira o padrão "Command" com um método `execute()` ou `handle()` para services que fazem apenas uma coisa.
+- **Injeção via Construtor**: Sempre use o construtor para declarar dependências, facilitando mocks em testes.
+- **Evite Acoplamento Circular**: Se o Service A depende do B e o B depende do A, reavalie a divisão de responsabilidades.
+- **Não abuse de Singletons para Estado**: Não armazene dados de usuários específicos em propriedades da classe do service, pois ele é compartilhado entre requisições.
 
 ## Links relacionados
 
-- [Controllers no fluxo](/architecture/request-pipeline)
-- [Services vs Controllers](/guides/first-application)
+- [Dependency Injection](/concepts/containers)
+- [Modules](/concepts/modules)
+- [Guia: Primeira Aplicação](/getting-started)

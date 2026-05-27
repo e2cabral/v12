@@ -1,26 +1,25 @@
-# Guides
+# Guias
 
-Resumo curto
-
-Os guides mostram como aplicar o `v12` em cenarios reais, nao apenas como usar a API.
+Nesta seção, você encontrará guias práticos para construir aplicações reais com o V12, cobrindo desde o setup inicial até o deploy em produção.
 
 ## Trilhas principais
 
-- [Primeira aplicacao](/guides/first-application)
-- [Autenticacao](/guides/authentication)
-- [Banco de dados](/guides/database)
+- [Primeira Aplicação](/getting-started)
+- [Autenticação](/guides/authentication)
+- [Banco de Dados](/guides/database)
+- [Multi-tenancy & Auditoria](/guides/multi-tenancy-audit)
 - [Observabilidade](/guides/observability)
 - [Testes](/guides/testing)
 - [Deploy](/guides/deployment)
 - [Plugins](/guides/plugins)
 
-## Como ler esta secao
+## Como ler esta seção
 
-Se voce esta chegando agora no framework, siga esta ordem:
+Se você é novo no framework, recomendamos seguir esta ordem:
 
-1. [Primeira aplicacao](/guides/first-application)
-2. [Autenticacao](/guides/authentication)
-3. [Banco de dados](/guides/database)
+1. [Começando (Primeira Aplicação)](/getting-started)
+2. [Autenticação](/guides/authentication)
+3. [Banco de Dados](/guides/database)
 4. [Testes](/guides/testing)
 
-Os guides assumem que voce ja viu o [Quick Start](/introduction/quick-start) e quer sair do "hello world" para um fluxo mais proximo de producao.
+Os guias assumem que você já compreende os [Conceitos](/concepts/) básicos do V12.

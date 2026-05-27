@@ -1,62 +1,85 @@
 # Containers
 
-Resumo curto
 
-O container do `v12` resolve providers, valores e factories, e pode criar escopos filhos por request.
 
-## Quando usar
+O container de Injeção de Dependência (DI) do V12 é responsável por gerenciar o ciclo de vida e a resolução de todas as dependências da aplicação.
 
-Leia esta página ao definir serviços, repositories ou extensões do core.
+## Funcionalidades
 
-## Conceito
+O container do V12 suporta:
 
-O container serve para:
+- **Registro de Dependências**: Classes, valores constantes ou factories.
+- **Resolução Automática**: Injeção de dependências via propriedade estática `inject`.
+- **Escopos**: `singleton` (padrão) e `request`.
+- **Hierarquia**: Criação de containers filhos para isolamento de contexto.
 
-- registrar dependências
-- resolver dependências
-- desacoplar criação de objetos
+## Tipos de Providers
 
-## Exemplo rápido
+### Class Provider
+Registra uma classe que será instanciada pelo container.
 
 ```ts
-container.register({ provide: 'Logger', useValue: logger });
-container.resolve(UsersService);
+container.register({ provide: 'UserService', useClass: UserService });
+// Ou forma curta se o token for a própria classe:
+container.register(UserService);
 ```
 
-## Explicação completa
+### Value Provider
+Registra um valor constante, como configurações ou instâncias pré-existentes.
 
-O modelo atual suporta:
-
-- classe
-- valor
-- factory
-
-Também permite `createChild()` para cenários de request.
-
-## Diagrama textual
-
-```txt
-Root Container
-  -> global providers
-  -> module providers
-  -> request child container
+```ts
+container.register({ provide: 'Config', useValue: { apiUrl: '...' } });
 ```
 
-## Erros comuns
+### Factory Provider
+Registra uma função que constrói a dependência, recebendo o container como argumento.
 
-- token não registrado
-- depender de detalhes concretos em vez de token estável
+```ts
+container.register({
+  provide: 'Database',
+  useFactory: (container) => {
+    const config = container.resolve('Config');
+    return new Database(config);
+  }
+});
+```
 
-## Boas práticas
+## Injeção de Dependências
 
-- use tokens explícitos para adapters
-- mantenha serviços focados
+O V12 utiliza uma propriedade estática `inject` para declarar as dependências de uma classe.
 
-## FAQ
+```ts
+class UsersController {
+  static inject = [UsersService, 'Config'] as const;
 
-### O container já tem escopo avançado?
+  constructor(
+    private usersService: UsersService,
+    private config: any
+  ) {}
+}
+```
 
-Ainda não. O modelo atual é simples e previsível.
+## Escopos (Scopes)
+
+- **singleton**: A instância é criada uma única vez e compartilhada por toda a aplicação.
+- **request**: A instância é criada uma vez por requisição (dentro do container filho da requisição).
+
+```ts
+container.register({
+  provide: UsersService,
+  useClass: UsersService,
+  scope: 'request'
+});
+```
+
+## Containers Filhos (Child Containers)
+
+O V12 cria automaticamente um container filho para cada requisição HTTP. Isso permite que dependências registradas com escopo `request` sejam resolvidas de forma isolada para cada usuário.
+
+```ts
+const child = container.createChild();
+child.resolve(UsersService); // Nova instância se for escopo 'request'
+```
 
 ## Links relacionados
 

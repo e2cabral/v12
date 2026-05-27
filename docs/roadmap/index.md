@@ -99,3 +99,10 @@ O `v12` atingiu seu objetivo de ser um framework backend opinativo, simples e po
 - OAuth Providers Expandidos (Apple, Microsoft, LinkedIn)
 - Audit Log
 - Multi-tenancy
+
+## Próximos Passos (Futuro)
+- **V12 Studio**: Interface visual para gerenciar módulos e visualizar o grafo de dependências.
+- **Serverless Adapters**: Otimizações específicas para deploy em AWS Lambda e Google Cloud Functions.
+- **Microservices Bridge**: Facilitar a comunicação via gRPC ou NATS entre serviços V12.
+- **AI Integration**: Plugins para integração facilitada com LLMs (OpenAI, Anthropic).
+- **Native Edge Support**: Suporte a ambientes Edge (Cloudflare Workers, Bun).

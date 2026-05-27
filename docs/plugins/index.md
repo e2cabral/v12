@@ -1,6 +1,6 @@
 # Plugins
 
-Resumo curto
+
 
 Seção dedicada aos plugins e extensões do ecossistema `v12`.
 

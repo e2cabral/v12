@@ -1,6 +1,6 @@
 # Conceitos Fundamentais
 
-Resumo curto
+
 
 Esta seção explica os conceitos-base que estruturam o runtime e o modelo mental do `v12`.
 

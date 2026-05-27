@@ -1,6 +1,6 @@
 # Instalação
 
-Resumo curto
+
 
 Esta página explica como instalar, validar requisitos e subir a base do `v12`.
 

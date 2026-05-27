@@ -10,12 +10,32 @@ createRouter(prefix?: string)
 
 ## Metodos
 
-- `get`
-- `post`
-- `put`
-- `patch`
-- `delete`
-- `build`
+- `get(path, definition)`: Define uma rota GET
+- `post(path, definition)`: Define uma rota POST
+- `put(path, definition)`: Define uma rota PUT
+- `patch(path, definition)`: Define uma rota PATCH
+- `delete(path, definition)`: Define uma rota DELETE
+- `build()`: Gera a `RouterDefinition` final para ser usada no `defineModule()`
+
+## Definição de Rota
+
+Cada método de rota aceita um objeto de definição com:
+
+- `handler`: Função que processa a requisição (`(context: RequestContext) => any`)
+- `schema`: Objeto com validadores Zod para `body`, `params`, `querystring` e `headers`
+- `middlewares`: Lista de `RouteMiddleware` específicos para esta rota
+- `version`: Versão opcional da rota (ex: `'v1'`)
+- `websocket`: Boolean indicando se a rota é um endpoint WebSocket
+
+## RequestContext
+
+O `handler` e os `middlewares` recebem um `RequestContext` contendo:
+
+- `request`: Instância do FastifyRequest (tipada conforme o schema)
+- `reply`: Instância do FastifyReply
+- `container`: Container de DI com escopo de requisição (child container)
+- `t(key, args)`: Helper de tradução (i18n)
+- `connection`: Disponível apenas em rotas `websocket`
 
 ## Exemplo minimo
 

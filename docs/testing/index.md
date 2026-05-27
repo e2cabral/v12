@@ -1,6 +1,6 @@
 # Testing
 
-Resumo curto
+
 
 Guia consolidado sobre estratégia de testes no `v12`.
 

@@ -1,6 +1,6 @@
 # O Que É O V12
 
-Resumo curto
+
 
 O `v12` é um framework backend para `Node.js` que combina organização por feature, convenções fortes e um core modular orientado a extensibilidade.
 
@@ -69,18 +69,9 @@ O core HTTP usa Fastify para manter overhead baixo.
 
 O framework já oferece base para JWT, API key e guards. Segurança mais avançada deve ser adicionada por plugin e por guia operacional.
 
-## FAQ
-
-### O V12 substitui Fastify?
-
-Não. O `v12` usa Fastify como engine e adiciona convenções, arquitetura e tooling.
-
-### O V12 é opinionated?
-
-Sim. Isso é parte central da proposta.
-
 ## Links relacionados
 
 - [Filosofia](/introduction/philosophy)
-- [Quick Start](/introduction/quick-start)
+- [Começando](/getting-started)
 - [Conceitos](/concepts/)
+- [FAQ](/faq/)

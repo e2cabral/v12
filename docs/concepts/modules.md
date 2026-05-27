@@ -1,42 +1,56 @@
 # Modules
 
-Resumo curto
 
-Modules são a unidade de composição de features no `v12`.
 
-## Quando usar
+Os Módulos são a unidade fundamental de organização do V12. Eles permitem agrupar funcionalidades relacionadas ao mesmo domínio de negócio (feature), promovendo alta coesão e baixo acoplamento.
 
-Sempre que uma feature precisar declarar providers, routes, events ou middlewares.
+## Estrutura de um Módulo
 
-## Conceito
+Cada módulo é definido através da função `defineModule` e encapsula tudo o que uma feature precisa para funcionar:
 
-O módulo agrega os elementos que fazem uma feature existir no runtime.
+- **Nome e Prefixo**: Identificam a feature e definem a base das suas rotas.
+- **Providers**: Serviços, repositórios e controllers específicos daquela feature.
+- **Rotas**: Endpoints expostos pela feature.
+- **Middlewares**: Lógica de interceptação específica do módulo.
+- **Eventos**: Integração com o barramento de eventos global.
+- **Jobs**: Tarefas em background associadas à feature.
+- **I18n**: Traduções locais da feature.
 
-## Exemplo rápido
+## Feature-Driven Architecture
 
-```ts
-export const UsersModule = defineModule({
-  name: 'users',
-  providers: [UsersService, UsersController],
-  routes: buildUsersRoutes(),
-});
+O V12 incentiva que você organize seu código por funcionalidade, não por tipo técnico. Em vez de ter pastas gigantes de `controllers` ou `services`, você tem pastas por feature.
+
+Exemplo de estrutura de diretórios:
+```txt
+src/
+  features/
+    billing/
+      billing.module.ts
+      billing.service.ts
+      billing.controller.ts
+      billing.routes.ts
+    users/
+      users.module.ts
+      users.service.ts
+      users.controller.ts
 ```
 
-## Explicação completa
+## Comunicação entre Módulos
 
-Um módulo pode conter:
+Embora os módulos devam ser independentes, eles podem se comunicar de duas formas:
 
-- `name`
-- `providers`
-- `routes`
-- `middlewares`
-- `events`
-- `jobs`
+1. **DI Global**: Injetando serviços de outros módulos (se registrados globalmente no `createApp`).
+2. **EventBus**: Publicando e ouvindo eventos de forma assíncrona, que é a forma recomendada para manter o desacoplamento.
 
-## Erros comuns
+## Registro
 
-- colocar lógica de negócio no módulo
-- usar módulo como “índice genérico” sem ownership real
+Todos os módulos devem ser listados no array `modules` ao chamar `createApp`.
+
+```ts
+const app = await createApp({
+  modules: [UsersModule, BillingModule],
+});
+```
 
 ## Links relacionados
 

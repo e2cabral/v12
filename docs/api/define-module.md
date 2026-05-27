@@ -11,13 +11,13 @@ defineModule(definition: ModuleDefinition): ModuleDefinition
 ## Campos do modulo
 
 - `name`: nome da feature e prefixo padrao das rotas
-- `prefix`: sobrescreve o prefixo padrao
-- `routes`: rotas construidas com `createRouter()`
-- `providers`: classes, tokens e valores registrados no container
-- `middlewares`: middlewares executados antes dos handlers da feature
-- `events`: listeners registrados no `EventBus`
-- `jobs`: definicoes de jobs
-- `i18n`: traducoes locais da feature
+- `prefix`: sobrescreve o prefixo padrao (ex: `/api/users`)
+- `routes`: rotas construidas com `createRouter().build()`
+- `providers`: lista de `Provider` (classes, tokens ou valores) registrados no container de DI
+- `middlewares`: middlewares de módulo (`RouteMiddleware[]`) executados em todas as rotas da feature
+- `events`: lista de objetos `{ event: string, handler: EventHandler }` para registro automático no `EventBus`
+- `jobs`: definições de jobs agendados ou em background
+- `i18n`: dicionário de traduções locais (`Record<string, any>`) mesclado ao serviço global de i18n
 
 ## Exemplo minimo
 

@@ -173,12 +173,11 @@ npm run docs:dev
 ```
 
 Paginas recomendadas para comecar:
-
-- [`docs/introduction/quick-start.md`](./docs/introduction/quick-start.md)
-- [`docs/guides/first-application.md`](./docs/guides/first-application.md)
-- [`docs/api/create-app.md`](./docs/api/create-app.md)
-- [`docs/api/define-module.md`](./docs/api/define-module.md)
-- [`docs/api/create-router.md`](./docs/api/create-router.md)
+- [Começando](./docs/getting-started.md)
+- [createApp API](./docs/api/create-app.md)
+- [defineModule API](./docs/api/define-module.md)
+- [createRouter API](./docs/api/create-router.md)
+- [Guidelines](./docs/guidelines.md)
 
 ## Estrutura sugerida
 

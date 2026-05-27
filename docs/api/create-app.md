@@ -20,21 +20,67 @@ Use `createApp()` no bootstrap da aplicacao, normalmente em `src/app.ts` ou `src
 - `plugins`: plugins do ecossistema V12
 - `fastify`: opcoes repassadas para a instancia Fastify
 - `security`: habilita `cors`, `helmet`, cookie e limites da aplicacao
-- `redis`: registra o plugin Redis e injeta o cliente como provider
-- `upload`: habilita multipart upload
-- `websocket`: habilita websocket routes
-- `i18n`: define locale padrao e traducoes
-- `telemetry`: inicia OpenTelemetry no bootstrap
+    - `cors`: boolean ou `FastifyCorsOptions`
+    - `helmet`: boolean ou `FastifyHelmetOptions`
+    - `cookie`: boolean ou `FastifyCookieOptions`
+    - `bodyLimit`: limite do corpo da requisição em bytes
+    - `requestTimeout`: timeout da conexão em milissegundos
+- `redis`: registra o plugin Redis e injeta o cliente como provider (`Redis`)
+- `upload`: habilita multipart upload via `@fastify/multipart`
+- `websocket`: habilita rotas websocket via `@fastify/websocket`
+- `i18n`: define locale padrao e traducoes (`I18nOptions`)
+- `telemetry`: inicia OpenTelemetry no bootstrap (`TelemetryOptions`)
 
 ## Retorno
 
 `AppInstance`, que estende a instancia Fastify com:
 
-- `container`
-- `events`
-- `modules`
-- `telemetry`
-- `use(plugin)`
+- `container`: Instância do container de DI global
+- `events`: EventBus para comunicação assíncrona
+- `modules`: Lista de módulos registrados
+- `telemetry`: Instância de Telemetry (se habilitado)
+- `use(plugin)`: Método para registrar plugins V12
+
+## Endpoints Automáticos
+
+Ao criar a aplicação, o V12 expõe automaticamente:
+
+- `GET /`: Página de boas-vindas (HTML) ou JSON com metadados
+- `GET /health`: Status de saúde da aplicação (uptime, memória, etc.)
+- `GET /metrics`: Métricas básicas para o Prometheus
+- `GET /docs`: Documentação interativa da API (disponível ao registrar o [pluginOpenApi](/api/swagger))
+- `GET /_v12/devtools`: Painel de ferramentas de desenvolvimento do V12
+
+## Exemplo completo
+
+```ts
+import { createApp } from 'v12';
+import { UsersModule } from './features/users/users.module.js';
+
+const app = await createApp({
+  modules: [UsersModule],
+  providers: [
+    { provide: 'Config', useValue: { api: 'v1' } }
+  ],
+  security: {
+    cors: true,
+    helmet: true,
+    bodyLimit: 1048576, // 1MB
+  },
+  redis: { url: 'redis://localhost:6379' },
+  upload: true,
+  websocket: true,
+  i18n: {
+    defaultLocale: 'pt-BR',
+  },
+  telemetry: {
+    enabled: true,
+    serviceName: 'my-api',
+  }
+});
+
+await app.listen({ port: 3000 });
+```
 
 ## Exemplo minimo
 
