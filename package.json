@@ -1,10 +1,20 @@
 {
-  "name": "v12",
+  "name": "@eddiecbrl/v12",
   "version": "0.1.0",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "files": [
     "dist"
   ],
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "V12 backend framework for Node.js with feature-driven architecture",
   "engines": {

@@ -145,23 +145,23 @@ Com isso, o framework expora:
 
 ## CLI
 
-A CLI acelera bastante o bootstrap:
+A CLI acelera bastante o bootstrap. Você pode usá-la via `npx` (se o pacote estiver instalado) ou via script npm:
 
 ```bash
-# Gerar uma feature
-npm run v12 -- generate feature users
+# Via npx
+npx v12 generate feature users
 
 # Gerar um resource CRUD
-npm run v12 -- generate resource billing invoice --adapter prisma
+npx v12 generate resource billing invoice --adapter prisma
 
 # Gerar um mailer
-npm run v12 -- generate mail users welcome-email
+npx v12 generate mail users welcome-email
 
-# Rodar migracoes
-npm run v12 -- migrate dev
+# Rodar migrações
+npx v12 migrate dev
 
 # Gerar um SDK TypeScript
-npm run v12 -- sdk
+npx v12 sdk
 ```
 
 ## Documentacao
