@@ -1948,14 +1948,17 @@ export const initProject = () => {
     {
       path: join('src', 'app.ts'),
       content: `import { createApp } from './core/http/app.js';
-
-export { createApp } from './core/http/app.js';
-export { defineModule } from './core/http/module.js';
-export { createRouter } from './core/http/router.js';
+import { pluginOpenApi } from './core/swagger/openapi.js';
 
 export const buildApp = () =>
   createApp({
     modules: [],
+    plugins: [
+      pluginOpenApi({
+        title: 'V12 API',
+        version: '1.0.0',
+      })
+    ]
   });
 `,
     },

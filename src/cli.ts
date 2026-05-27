@@ -24,14 +24,22 @@ import { writeFileSync } from 'node:fs';
 const program = new Command();
 
 const v12Banner = `
-  __      __  __  ___  
-  \\ \\    / / /_ | |__ \\ 
-   \\ \\  / /   | |    ) |
-    \\ \\/ /    | |   / / 
-     \\__/     |_|  / /_ 
-                   |____|
-  
-  V12 Framework - Fast, Simple, Feature-Driven
+             ╭────────────────────────────╮
+        ╭────┤ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ├────╮
+        │    ╰────────────────────────────╯    │
+        │   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   │
+        │   ║   HIGH PERFORMANCE ENGINE   ║   │
+        ╰────┬────┬────┬────┬────┬────┬────╯
+             │    │    │    │    │    │
+            ═╧════╧════╧════╧════╧════╧═
+
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                ⚙️  V12 FRAMEWORK
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              Fast • Minimal • Modular
+                 Feature-Driven Core
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
 program.addHelpText('before', v12Banner);

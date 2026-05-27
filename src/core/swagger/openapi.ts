@@ -13,17 +13,27 @@ export type OpenApiOptions = {
 };
 
 export const pluginOpenApi = (
-  modules: ModuleDefinition[],
-  options: OpenApiOptions,
+  modulesOrOptions: ModuleDefinition[] | OpenApiOptions,
+  options?: OpenApiOptions,
 ) =>
   definePlugin('openapi', (app) => {
-    const spec = buildOpenApiDocument(modules, options);
-    const path = options.path ?? '/openapi.json';
-    const docsPath = options.docsPath ?? '/docs';
+    const modules = Array.isArray(modulesOrOptions)
+      ? modulesOrOptions
+      : app.modules || [];
+    const opts = Array.isArray(modulesOrOptions)
+      ? options!
+      : modulesOrOptions;
 
-    app.get(path, async (_request, reply) => reply.send(spec));
+    const path = opts.path ?? '/openapi.json';
+    const docsPath = opts.docsPath ?? '/docs';
+
+    app.get(path, async (_request, reply) => {
+      const spec = buildOpenApiDocument(modules, opts);
+      return reply.send(spec);
+    });
+
     app.get(docsPath, async (_request, reply) =>
-      reply.type('text/html').send(renderDocsPage(path, options.title)),
+      reply.type('text/html').send(renderDocsPage(path, opts.title)),
     );
   });
 
@@ -148,7 +158,7 @@ const renderDocsPage = (openApiPath: string, title: string) => `<!doctype html>
     <script
       id="api-reference"
       data-url="${openApiPath}"
-      data-configuration='{ "theme": "purple" }'></script>
+      data-configuration='{ "theme": "dark", "layout": "modern" }'></script>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>
 </html>`;
