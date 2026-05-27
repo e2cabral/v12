@@ -6,6 +6,9 @@ import Fastify, {
   type FastifyServerOptions,
 } from 'fastify';
 import redisPlugin, { type FastifyRedisPluginOptions } from '@fastify/redis';
+import type { FastifyCorsOptions } from '@fastify/cors';
+import type { FastifyHelmetOptions } from '@fastify/helmet';
+import type { FastifyCookieOptions } from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import websocket from '@fastify/websocket';
 import { AppError, ValidationError } from '../errors/app-error.js';

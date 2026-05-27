@@ -32,7 +32,7 @@ describe('Database Layer', () => {
         afterCreateHookCalled = false;
 
         constructor() {
-          super(mockModel);
+          super(mockModel, 'test');
         }
 
         protected async beforeCreate(data: any) {
@@ -66,7 +66,7 @@ describe('Database Layer', () => {
         afterUpdateHookCalled = false;
 
         constructor() {
-          super(mockModel);
+          super(mockModel, 'test');
         }
 
         protected async beforeUpdate(id: string, data: any) {
@@ -100,7 +100,7 @@ describe('Database Layer', () => {
         afterDeleteHookCalled = false;
 
         constructor() {
-          super(mockModel);
+          super(mockModel, 'test');
         }
 
         protected async beforeDelete(id: string) {

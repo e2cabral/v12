@@ -36,7 +36,7 @@ describe('Database Adapters', () => {
 
       class TestRepo extends TypeOrmRepository<any> {
         hooks = { beforeCreate: false, afterCreate: false };
-        constructor() { super(mockRepo); }
+        constructor() { super(mockRepo, 'test'); }
         protected async beforeCreate(d: any) { this.hooks.beforeCreate = true; return d; }
         protected async afterCreate(d: any) { this.hooks.afterCreate = true; }
       }
@@ -57,7 +57,7 @@ describe('Database Adapters', () => {
     it('calculates skip and limit correctly', () => {
       const mockRepo = { find: vi.fn() };
       class TestRepo extends TypeOrmRepository<any> {
-        constructor() { super(mockRepo); }
+        constructor() { super(mockRepo, 'test'); }
         public testPagination(opts?: any) { return this.getPagination(opts); }
       }
       const repo = new TestRepo();
@@ -70,7 +70,7 @@ describe('Database Adapters', () => {
         findAndCount: vi.fn().mockResolvedValue([[{ id: '1' }], 1]),
       };
       class TestRepo extends TypeOrmRepository<any> {
-        constructor() { super(mockRepo); }
+        constructor() { super(mockRepo, 'test'); }
       }
       const repo = new TestRepo();
       const result = await repo.findPaginated({ page: 1, limit: 5 });
@@ -121,7 +121,7 @@ describe('Database Adapters', () => {
       };
 
       class TestRepo extends MongooseRepository<any> {
-        constructor() { super(mockModel); }
+        constructor() { super(mockModel, 'test'); }
       }
 
       const repo = new TestRepo();

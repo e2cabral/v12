@@ -21,7 +21,7 @@ describe('Query Builder (PrismaAdapter)', () => {
 
   class TestRepository extends PrismaRepository<any> {
     constructor() {
-      super(mockModel);
+      super(mockModel, 'test');
     }
   }
 
@@ -135,7 +135,7 @@ describe('Query Builder (MongooseAdapter)', () => {
 
   class TestRepository extends MongooseRepository<any> {
     constructor() {
-      super(mockModel);
+      super(mockModel, 'test');
     }
   }
 
@@ -184,7 +184,7 @@ describe('Query Builder (TypeOrmAdapter)', () => {
 
   class TestRepository extends TypeOrmRepository<any> {
     constructor() {
-      super(mockRepo);
+      super(mockRepo, 'test');
     }
   }
 
