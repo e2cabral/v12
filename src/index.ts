@@ -42,4 +42,5 @@ export * from './core/swagger/openapi.js';
 export * from './core/telemetry/otel.js';
 export * from './core/testing/testing-app.js';
 export * from './core/validation/schema.js';
+export * from './core/resilience/index.js';
 export * from './core/sdk/generator.js';
