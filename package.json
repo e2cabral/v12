@@ -1,6 +1,9 @@
 {
   "name": "v12",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
   "private": true,
   "type": "module",
   "description": "V12 backend framework for Node.js with feature-driven architecture",
