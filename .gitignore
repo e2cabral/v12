@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.DS_Store
+coverage
+.junie
+test-storage
+.idea
+docs/.vitepress/dist
+docs/.vitepress/cache
