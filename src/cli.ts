@@ -16,6 +16,7 @@ import {
   removeFeature,
   removeRoute,
 } from './cli/scaffold.js';
+import { resourceWizard } from './cli/wizard.js';
 import { runMigrate } from './cli/migrate.js';
 import { generateSDK } from './core/sdk/generator.js';
 import { join } from 'node:path';
@@ -64,21 +65,25 @@ program
 
 generate
   .command('resource')
-  .argument('<feature>', 'feature name')
-  .argument('<name>', 'resource name')
+  .argument('[feature]', 'feature name')
+  .argument('[name]', 'resource name')
   .option('--path <path>', 'base path for the generated CRUD routes')
   .option('--no-register', 'do not register generated providers in the feature module')
   .option('--adapter <adapter>', 'repository adapter: memory, prisma, drizzle, typeorm, mongoose, base', 'memory')
   .action(
-    (
-      feature: string,
-      name: string,
+    async (
+      feature: string | undefined,
+      name: string | undefined,
       options: {
         path?: string;
         register: boolean;
         adapter: 'memory' | 'prisma' | 'drizzle' | 'typeorm' | 'mongoose' | 'base';
       },
     ) => {
+      if (!feature || !name) {
+        await resourceWizard();
+        return;
+      }
       const result = generateCrudResource(feature, name, {
         basePath: options.path,
         register: options.register,

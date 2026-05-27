@@ -110,6 +110,7 @@ export const generateService = (
   const { featureName, featureClass, baseDir } = resolveFeatureContext(
     rawFeatureName,
     options.cwd,
+    true,
   );
   const register = options.register ?? true;
   const resourceName = toKebabCase(rawName);
@@ -158,7 +159,11 @@ export const generateRepository = (
   rawName: string,
   options: GenerateResourceOptions = {},
 ) => {
-  const { featureName, baseDir } = resolveFeatureContext(rawFeatureName, options.cwd);
+  const { featureName, baseDir } = resolveFeatureContext(
+    rawFeatureName,
+    options.cwd,
+    true,
+  );
   const register = options.register ?? true;
   const adapter = options.adapter ?? 'memory';
   const resourceName = toKebabCase(rawName);
@@ -339,7 +344,11 @@ export const generateController = (
   rawName: string,
   options: GenerateResourceOptions = {},
 ) => {
-  const { featureName, baseDir } = resolveFeatureContext(rawFeatureName, options.cwd);
+  const { featureName, baseDir } = resolveFeatureContext(
+    rawFeatureName,
+    options.cwd,
+    true,
+  );
   const register = options.register ?? true;
   const resourceName = toKebabCase(rawName);
   const resourceClass = `${toPascalCase(resourceName)}Controller`;
@@ -386,7 +395,11 @@ export const generateSchema = (
   rawName: string,
   options: GenerateResourceOptions = {},
 ) => {
-  const { featureName, baseDir } = resolveFeatureContext(rawFeatureName, options.cwd);
+  const { featureName, baseDir } = resolveFeatureContext(
+    rawFeatureName,
+    options.cwd,
+    true,
+  );
   const schemaName = toCamelCase(rawName);
   const schemasPath = join(baseDir, `${featureName}.schemas.ts`);
   const currentSchemas = readExistingFile(
@@ -428,6 +441,7 @@ export const generateRoute = (
   const { featureName, featureClass, baseDir } = resolveFeatureContext(
     rawFeatureName,
     options.cwd,
+    true,
   );
   const register = options.register ?? true;
   const routeName = toKebabCase(rawName);
@@ -610,7 +624,7 @@ export const generateCrudResource = (
     }),
   ];
 
-  const featureContext = resolveFeatureContext(featureName, options.cwd);
+  const featureContext = resolveFeatureContext(featureName, options.cwd, true);
   const typesPath = join(featureContext.baseDir, `${featureName}.types.ts`);
   const schemasPath = join(featureContext.baseDir, `${featureName}.schemas.ts`);
   const errorsPath = join(featureContext.baseDir, `${featureName}.errors.ts`);
@@ -1198,6 +1212,7 @@ export const generateMiddleware = (
   const { featureName, featureClass, baseDir } = resolveFeatureContext(
     rawFeatureName,
     options.cwd,
+    true,
   );
   const middlewareName = toKebabCase(rawName);
   const middlewareSlug = toCamelCase(middlewareName);
@@ -1232,6 +1247,7 @@ export const generateGuard = (
   const { featureName, featureClass, baseDir } = resolveFeatureContext(
     rawFeatureName,
     options.cwd,
+    true,
   );
   const guardName = toKebabCase(rawName);
   const guardSlug = toCamelCase(guardName);
@@ -1272,6 +1288,7 @@ export const generateMail = (
   const { featureName, featureClass, baseDir } = resolveFeatureContext(
     rawFeatureName,
     options.cwd,
+    true,
   );
   const mailName = toKebabCase(rawName);
   const mailClass = toPascalCase(mailName);
@@ -1410,14 +1427,22 @@ export const registerProviderInModule = (
   return nextSource.replace(/providers:\s*\[[\s\S]*?\]/m, replacement);
 };
 
-const resolveFeatureContext = (rawFeatureName: string, cwd = process.cwd()) => {
+const resolveFeatureContext = (
+  rawFeatureName: string,
+  cwd = process.cwd(),
+  autoCreate = false,
+) => {
   const featureName = toKebabCase(rawFeatureName);
   const featureSlug = toCamelCase(featureName);
   const featureClass = toPascalCase(featureName);
   const baseDir = join(cwd, 'features', featureName);
 
   if (!existsSync(baseDir)) {
-    throw new Error(`Feature "${featureName}" does not exist`);
+    if (autoCreate) {
+      generateFeature(rawFeatureName, { cwd });
+    } else {
+      throw new Error(`Feature "${featureName}" does not exist`);
+    }
   }
 
   return { featureName, featureSlug, featureClass, baseDir };
