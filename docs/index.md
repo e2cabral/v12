@@ -4,10 +4,10 @@ layout: home
 hero:
   name: V12
   text: Framework backend feature-driven para Node.js
-  tagline: Arquitetura modular, DX forte e documentacao pensada para adocao real.
+  tagline: Arquitetura modular, DX forte e documentação pensada para uso real em equipe.
   actions:
     - theme: brand
-      text: Instalacao rapida
+      text: Instalação
       link: /introduction/installation
     - theme: alt
       text: Quick Start
@@ -15,34 +15,55 @@ hero:
 
 features:
   - title: Feature-first
-    details: Organize por dominio, nao por camada global. Cada feature nasce quase independente.
+    details: Cada domínio fica próximo de si mesmo, com rotas, serviços, schemas, testes e infraestrutura organizados por feature.
   - title: Core enxuto
-    details: HTTP, DI, configuracao, validacao, erros, plugins, auth e testing em uma base coesa.
-  - title: CLI forte
-    details: Gere features, routes, resources e remova artefatos com fluxo consistente.
-  - title: Producao em mente
-    details: Logs, OpenAPI, metricas, auth, guards e guidelines de seguranca e performance.
+    details: HTTP, DI, validação, segurança, resiliência e observabilidade convivem num runtime pequeno e direto.
+  - title: CLI útil
+    details: Gere features, resources, rotas, controllers, services, schemas e SDK com convenções consistentes.
+  - title: Produção em mente
+    details: Logs estruturados, x-request-id, healthcheck, métricas, OpenAPI, plugins e guias operacionais.
 ---
 
-## O V12 em menos de 30 segundos
+## O V12 em menos de 1 minuto
 
-O `v12` e um framework backend para `Node.js` e `TypeScript` focado em **arquitetura orientada a features**, **baixo acoplamento** e **boa experiencia de desenvolvimento**. Ele foi desenhado para equipes que querem velocidade no inicio sem pagar com caos estrutural quando a base crescer.
+O `@eddiecbrl/v12` é um framework backend para `Node.js` e `TypeScript` construído sobre Fastify. A ideia central é simples: **a feature é a unidade principal da aplicação**.
 
-## Instalacao rapida
+Em vez de espalhar arquivos por camadas globais como `controllers/`, `services/` e `repositories/`, o V12 incentiva que cada domínio tenha seu próprio boundary.
 
-```bash
-npm install
-npm run dev
-```
+## Quando ele faz sentido
 
-## Exemplo minimo
+O V12 tende a encaixar bem quando você quer:
+
+- crescer uma API sem virar uma colcha de retalhos estrutural
+- padronizar a criação de features num time
+- manter controllers finos e regras de negócio mais fáceis de testar
+- ter uma base pronta para segurança, validação, docs e observabilidade
+
+## Exemplo mínimo
 
 ```ts
-import { createApp } from 'v12';
-import { UsersModule } from './features/users/users.module.js';
+import { createApp, createRouter, defineModule } from '@eddiecbrl/v12';
+
+class PingController {
+  check() {
+    return { pong: true };
+  }
+}
+
+const router = createRouter();
+
+router.get('/', {
+  handler: ({ container }) => container.resolve(PingController).check(),
+});
+
+const PingModule = defineModule({
+  name: 'ping',
+  providers: [PingController],
+  routes: router.build(),
+});
 
 const app = await createApp({
-  modules: [UsersModule],
+  modules: [PingModule],
 });
 
 await app.listen({ port: 3000 });
@@ -53,7 +74,7 @@ await app.listen({ port: 3000 });
 ```ts
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { createRouter, defineModule } from 'v12';
+import { createRouter, defineModule } from '@eddiecbrl/v12';
 
 const createUserSchema = {
   body: z.object({
@@ -62,6 +83,8 @@ const createUserSchema = {
   }),
 };
 
+type CreateUserInput = z.infer<typeof createUserSchema.body>;
+
 class UsersService {
   private readonly users: Array<{ id: string; name: string; email: string }> = [];
 
@@ -69,7 +92,7 @@ class UsersService {
     return this.users;
   }
 
-  create(input: { name: string; email: string }) {
+  create(input: CreateUserInput) {
     const user = { id: crypto.randomUUID(), ...input };
     this.users.push(user);
     return user;
@@ -83,7 +106,7 @@ class UsersController {
 
   list = async () => this.usersService.list();
 
-  create = async ({ request }: { request: { body: { name: string; email: string } } }) =>
+  create = async ({ request }: { request: { body: CreateUserInput } }) =>
     this.usersService.create(request.body);
 }
 
@@ -97,7 +120,7 @@ router.post('/', {
   schema: createUserSchema,
   handler: ({ container, request }) =>
     container.resolve(UsersController).create({
-      request: { body: request.body as { name: string; email: string } },
+      request: { body: request.body as CreateUserInput },
     }),
 });
 
@@ -108,44 +131,47 @@ export const UsersModule = defineModule({
 });
 ```
 
-## Beneficios
+## Como a aplicação costuma ficar
 
-- onboarding rapido para novos devs
-- separacao clara entre HTTP, aplicacao e persistencia
-- convencoes fortes sem perder extensibilidade
-- documentacao como fonte unica da verdade
+```txt
+src/
+  features/
+    users/
+      users.module.ts
+      users.routes.ts
+      users.controller.ts
+      users.service.ts
+      users.schemas.ts
+      users.repository.ts
+  app.ts
+  server.ts
+```
 
-## Recursos principais
+## O que vem pronto
 
-- `createApp()`
-- `defineModule()`
-- `createRouter()`
-- validacao com Zod
-- auth com JWT e API key
-- plugin system
-- OpenAPI e docs
-- CLI de scaffold e remocao
+- `createApp()` para bootstrap do runtime
+- `defineModule()` para modelar features
+- `createRouter()` para declarar rotas
+- validação com Zod
+- auth com JWT, API key e OAuth helpers
+- cache, queue, mail, storage e database adapters
+- testing helpers
+- plugin OpenAPI e geração de SDK
 
-## Comparacoes
+## Primeiros passos recomendados
 
-- Se voce gosta da objetividade do Fastify, o `v12` conversa bem com isso.
-- Se voce gosta do modelo mental estruturado do NestJS, o `v12` entrega organizacao com menos ceremony.
-- Se voce valoriza DX como Vite, Next.js e Prisma, a CLI e as convencoes do `v12` seguem essa direcao.
+1. Leia [Instalação](/introduction/installation).
+2. Siga [Quick Start](/introduction/quick-start).
+3. Monte a primeira feature com [Começando](/getting-started).
+4. Consulte a referência de [createApp](/api/create-app), [defineModule](/api/define-module) e [createRouter](/api/create-router).
 
-## Roadmap
+## Links rápidos
 
-O `v12` atingiu sua maturidade core. Veja o estado atual e planos futuros em [Roadmap](/roadmap/).
-
-## Comunidade
-
-O projeto ainda esta jovem, mas a meta da documentacao e ja operar como material de framework maduro: onboarding, arquitetura, referencia, guides e cookbook.
-
-## Quick Links
-
-- [O que e o V12](/introduction/)
+- [Introdução](/introduction/)
+- [Instalação](/introduction/installation)
 - [Quick Start](/introduction/quick-start)
-- [Primeira aplicacao](/guides/first-application)
-- [Conceitos fundamentais](/concepts/)
-- [Arquitetura interna](/architecture/)
+- [Começando](/getting-started)
+- [Conceitos](/concepts/)
+- [Arquitetura](/architecture/)
 - [API Reference](/api/)
 - [CLI](/api/cli)

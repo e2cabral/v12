@@ -1,110 +1,196 @@
 # Instalação
 
+Esta página cobre os requisitos do V12, as formas de instalar o pacote e o que validar antes de começar um projeto novo ou preparar CI.
 
+## Requisitos
 
-Esta página explica como instalar, validar requisitos e subir a base do `v12`.
-
-## Quando usar
-
-Use esta página antes de criar a primeira aplicação ou ao preparar ambiente de CI.
-
-## Conceito
-
-O `v12` é `TypeScript-first`, usa `Node.js 20+` e assume uma base moderna de tooling.
-
-## Exemplo rápido
-
-```bash
-npm install
-npm run dev
-```
-
-## Explicação completa
-
-### Requisitos
-
-- Node.js `20+`
+- Node.js `20` ou superior
 - npm, pnpm, yarn ou bun
+- familiaridade básica com TypeScript e APIs HTTP
 
-### npm
+> O `package.json` do projeto declara `node >= 20`.
+
+## Instalando o framework em um projeto
+
+Se você quer usar o V12 como dependência de uma aplicação:
+
+```bash
+npm install @eddiecbrl/v12 zod
+```
+
+Com outras ferramentas:
+
+```bash
+pnpm add @eddiecbrl/v12 zod
+yarn add @eddiecbrl/v12 zod
+bun add @eddiecbrl/v12 zod
+```
+
+O `zod` entra quase sempre junto porque o framework usa schemas Zod para validação e geração de documentação.
+
+## Instalando dependências para desenvolver o próprio repositório
+
+Se você está trabalhando neste código-fonte do framework:
 
 ```bash
 npm install
+```
+
+Scripts úteis:
+
+```bash
 npm run dev
+npm run test
+npm run typecheck
+npm run docs:dev
 ```
 
-### pnpm
+## Verificando o ambiente
 
-```bash
-pnpm install
-pnpm run dev
-```
-
-### yarn
-
-```bash
-yarn
-yarn dev
-```
-
-### bun
-
-```bash
-bun install
-bun run dev
-```
-
-## Exemplos avançados
-
-- rodar `npm run docs:dev`
-- rodar `npm run typecheck`
-- rodar `npm test`
-
-## Boas práticas
-
-- fixe a versão de Node no time
-- rode `typecheck` e `test` no CI
-
-## Anti-patterns
-
-- misturar versões de runtime na equipe
-- assumir que build passa se apenas `dev` sobe
-
-## Performance
-
-O build usa `tsup`; a execução de desenvolvimento usa `tsx`.
-
-## Segurança
-
-Nunca commite secrets em `.env`.
-
-## FAQ
-
-### O V12 suporta CommonJS?
-
-Hoje a direção principal é ESM.
-
-## Troubleshooting
-
-### Sintoma
-
-`npm run dev` não sobe.
-
-### Possível causa
-
-Versão de Node abaixo de `20`.
-
-### Como validar
+Antes de seguir, vale confirmar:
 
 ```bash
 node -v
+npm -v
 ```
 
-### Como corrigir
+Se `node -v` retornar algo abaixo de `20`, a CLI e os exemplos podem se comportar de forma inconsistente.
 
-Atualize o runtime.
+## Estrutura mínima esperada numa aplicação
 
-## Links relacionados
+Você não precisa começar com uma estrutura enorme. O menor setup útil costuma ter:
+
+```txt
+src/
+  app.ts
+  server.ts
+```
+
+Conforme as features entram:
+
+```txt
+src/
+  app.ts
+  server.ts
+  features/
+    users/
+      users.module.ts
+      users.routes.ts
+      users.controller.ts
+      users.service.ts
+      users.schemas.ts
+```
+
+## Exemplo mínimo de bootstrap
+
+`src/app.ts`
+
+```ts
+import { createApp } from '@eddiecbrl/v12';
+
+export const buildApp = () =>
+  createApp({
+    modules: [],
+  });
+```
+
+`src/server.ts`
+
+```ts
+import { buildApp } from './app.js';
+
+const app = await buildApp();
+
+await app.listen({
+  port: 3000,
+  host: '0.0.0.0',
+});
+```
+
+## Instalação da CLI
+
+O framework expõe um binário `v12` quando instalado. Você pode usar:
+
+```bash
+npx v12 --help
+```
+
+Dentro deste repositório, também existe o script:
+
+```bash
+npm run v12 -- --help
+```
+
+Alguns comandos úteis:
+
+```bash
+npx v12 init
+npx v12 generate feature users
+npx v12 generate resource users profile-card --adapter memory
+npx v12 sdk --output ./sdk.ts --url http://localhost:3000
+```
+
+## O que o comando `init` faz
+
+O comando:
+
+```bash
+npx v12 init
+```
+
+inicializa a estrutura básica **no diretório atual**. Ele não recebe o nome do projeto como argumento no estado atual da CLI.
+
+Um fluxo comum seria:
+
+```bash
+mkdir my-api
+cd my-api
+npx v12 init
+npm install
+```
+
+## Boas práticas de setup
+
+- padronize a versão de Node no time
+- execute `typecheck` e `test` no CI
+- mantenha `src/app.ts` como ponto de montagem da aplicação
+- use `src/server.ts` só para bootstrap e `listen`
+
+## Problemas comuns
+
+### `npm run dev` não sobe
+
+Possíveis causas:
+
+- Node abaixo da versão suportada
+- dependências não instaladas
+- erro de import ESM/arquivo `.js` nos imports relativos compilados
+
+Checklist rápido:
+
+```bash
+node -v
+npm install
+npm run typecheck
+```
+
+### A CLI não é encontrada
+
+Tente:
+
+```bash
+npx v12 --help
+```
+
+ou, dentro do repositório:
+
+```bash
+npm run v12 -- --help
+```
+
+## Próximos passos
 
 - [Quick Start](/introduction/quick-start)
-- [Configuration](/concepts/configuration)
+- [Começando](/getting-started)
+- [Configuração](/concepts/configuration)
+- [CLI](/api/cli)

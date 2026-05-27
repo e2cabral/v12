@@ -1,77 +1,105 @@
-# O Que É O V12
+# O que é o V12
 
+O `@eddiecbrl/v12` é um framework backend para `Node.js` que combina:
 
+- organização por feature
+- runtime HTTP baseado em Fastify
+- injeção de dependência simples
+- validação tipada com Zod
+- extensibilidade via plugins e providers
 
-O `v12` é um framework backend para `Node.js` que combina organização por feature, convenções fortes e um core modular orientado a extensibilidade.
+Ele não tenta apenas "subir um servidor". A proposta é ajudar a equipe a manter estrutura, clareza e previsibilidade conforme a aplicação cresce.
 
 ## Quando usar
 
-Use o `v12` quando você quiser:
+O V12 costuma ser uma boa escolha quando você quer:
 
-- construir APIs modulares com crescimento previsível
-- evitar estrutura global por `controllers/`, `services/`, `repositories/`
-- acelerar onboarding sem abrir mão de arquitetura
-- padronizar a forma como sua equipe cria features
+- construir APIs com módulos bem separados por domínio
+- evitar uma base espalhada por pastas globais como `controllers/` e `services/`
+- acelerar onboarding com convenções fortes
+- manter espaço para plugins, docs, telemetria e recursos de produção
 
-## Conceito
+## O problema que ele resolve
 
-O problema que o `v12` resolve não é apenas “subir um servidor HTTP”. O framework existe para resolver um problema de **estrutura**, **consistência** e **longevidade**.
-
-Em projetos Node.js, a parte fácil é expor rotas. A parte difícil é manter:
+Em aplicações Node.js, expor rotas é a parte fácil. O que costuma ficar caro com o tempo é manter:
 
 - coerência arquitetural
 - fronteiras de responsabilidade
 - testabilidade
-- escalabilidade organizacional
+- extensibilidade sem retrabalho
 
-## Exemplo rápido
+O V12 organiza essas peças em torno da feature como boundary primário.
+
+## Modelo mental
+
+Em vez de pensar primeiro em camadas técnicas, você tende a pensar assim:
 
 ```txt
-src/
-  features/
-    users/
-      users.module.ts
-      users.routes.ts
-      users.controller.ts
-      users.service.ts
-      users.repository.ts
+users/
+  users.module.ts
+  users.routes.ts
+  users.controller.ts
+  users.service.ts
+  users.schemas.ts
+  users.repository.ts
 ```
 
-## Explicação completa
+Ou seja: a feature reúne HTTP, aplicação, contratos e persistência perto do problema de negócio que ela resolve.
 
-O `v12` parte da ideia de que a **feature é a unidade primária do sistema**. O framework organiza o runtime, o container, a validação, os plugins e a CLI em torno dessa premissa.
+## O que compõe o framework
 
-## Exemplos avançados
+No uso mais comum, quatro peças aparecem o tempo todo:
 
-- módulos com eventos
-- rotas com guards de JWT e role
-- plugins de OpenAPI e observabilidade
-- scaffold CRUD com `generate resource`
+1. `createRouter()` declara rotas e schemas.
+2. `defineModule()` empacota a feature.
+3. `createApp()` monta o runtime.
+4. O container resolve controllers, services e outros providers.
 
-## Boas práticas
+## Exemplo curto
 
-- trate cada feature como um boundary de domínio
-- mantenha controllers finos
-- concentre regra em services
-- use repositories para isolar persistência
+```ts
+import { createApp, createRouter, defineModule } from '@eddiecbrl/v12';
 
-## Anti-patterns
+class PingController {
+  get() {
+    return { pong: true };
+  }
+}
 
-- regra de negócio em route handler
-- uso de detalhes HTTP dentro do repository
-- features compartilhando estado sem fronteira explícita
+const router = createRouter();
 
-## Performance
+router.get('/', {
+  handler: ({ container }) => container.resolve(PingController).get(),
+});
 
-O core HTTP usa Fastify para manter overhead baixo.
+const PingModule = defineModule({
+  name: 'ping',
+  providers: [PingController],
+  routes: router.build(),
+});
 
-## Segurança
+const app = await createApp({
+  modules: [PingModule],
+});
+```
 
-O framework já oferece base para JWT, API key e guards. Segurança mais avançada deve ser adicionada por plugin e por guia operacional.
+## O que já vem pronto
 
-## Links relacionados
+- `GET /` com página de boas-vindas ou JSON
+- `GET /health`
+- `GET /metrics`
+- `x-request-id` por request
+- tratamento padronizado de erros
+- validação de `body`, `params`, `querystring` e `headers`
 
-- [Filosofia](/introduction/philosophy)
+## O que ele não tenta esconder
+
+O V12 não esconde o Fastify atrás de uma camada excessivamente mágica. A intenção é oferecer convenções e ergonomia sem apagar os conceitos do runtime que está por baixo.
+
+## Próximas leituras
+
+- [Instalação](/introduction/installation)
+- [Quick Start](/introduction/quick-start)
 - [Começando](/getting-started)
+- [Filosofia](/introduction/philosophy)
 - [Conceitos](/concepts/)
-- [FAQ](/faq/)

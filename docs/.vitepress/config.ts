@@ -31,8 +31,9 @@ export default defineConfig({
         text: 'Comece Aqui',
         items: [
           { text: 'Home', link: '/' },
+          { text: 'Quick Start', link: '/introduction/quick-start' },
           { text: 'Começando', link: '/getting-started' },
-          { text: 'O Que É', link: '/introduction/' },
+          { text: 'O que é', link: '/introduction/' },
           { text: 'Filosofia', link: '/introduction/philosophy' },
           { text: 'Instalação', link: '/introduction/installation' },
           { text: 'Guidelines', link: '/guidelines' },
@@ -78,6 +79,7 @@ export default defineConfig({
           { text: 'Swagger', link: '/api/swagger' },
           { text: 'Telemetry', link: '/api/telemetry' },
           { text: 'Errors', link: '/api/errors' },
+          { text: 'Resiliência', link: '/api/resilience' },
           { text: 'Auth', link: '/api/auth' },
           { text: 'Security', link: '/api/security' },
           { text: 'Database', link: '/api/database' },
@@ -106,6 +108,7 @@ export default defineConfig({
           { text: 'Testes', link: '/guides/testing' },
           { text: 'Deploy', link: '/guides/deployment' },
           { text: 'Plugins', link: '/guides/plugins' },
+          { text: 'Resiliência', link: '/guides/resilience' },
         ],
       },
       {

@@ -1,67 +1,101 @@
 # V12 Framework
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/lucas-felix/v12/main/logo.png" alt="V12 Logo" width="200" style="display: none;">
-  <br>
   <b>Simple. Cohesive. Fast.</b>
   <br>
-  Feature-driven backend framework for Node.js built on Fastify.
+  Framework backend feature-driven para Node.js, TypeScript e Fastify.
 </p>
 
-O `v12` e um framework backend para `Node.js` e `TypeScript` com foco em arquitetura por feature, bootstrap enxuto e APIs tipadas. A ideia central e simples: cada dominio da aplicacao nasce como um modulo coeso, com rotas, servicos, contratos e infraestrutura proximos entre si.
+O `@eddiecbrl/v12` é um framework para construção de APIs modulares com foco em:
 
-## Quick Start
+- organização por feature, não por camada solta
+- bootstrap enxuto
+- validação tipada com Zod
+- DI simples e previsível
+- base pronta para segurança, observabilidade, SDK e plugins
+
+Se a sua equipe quer começar rápido sem perder legibilidade quando o projeto crescer, essa é a proposta do V12.
+
+## Instalação
+
+```bash
+npm install @eddiecbrl/v12 zod
+```
+
+Para desenvolvimento local do próprio framework:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Se voce quiser subir uma app minima sem depender da CLI, a estrutura mais curta e esta:
+## Exemplo mínimo
 
 ```ts
-import { createApp, createRouter, defineModule } from 'v12';
+import { createApp, createRouter, defineModule } from '@eddiecbrl/v12';
 
-class HealthController {
+class PingController {
   check() {
-    return { status: 'ok' };
+    return { pong: true };
   }
 }
 
 const router = createRouter();
 
 router.get('/', {
-  handler: ({ container }) => container.resolve(HealthController).check(),
+  handler: ({ container }) => container.resolve(PingController).check(),
 });
 
-const HealthModule = defineModule({
-  name: 'health',
-  providers: [HealthController],
+const PingModule = defineModule({
+  name: 'ping',
+  providers: [PingController],
   routes: router.build(),
 });
 
 const app = await createApp({
-  modules: [HealthModule],
+  modules: [PingModule],
 });
 
 await app.listen({ port: 3000 });
 ```
 
-## Como o framework se organiza
+Isso expõe:
 
-1. `createApp()` monta a aplicacao Fastify, registra middlewares globais e carrega modulos.
-2. `defineModule()` descreve uma feature com providers, rotas, middlewares e eventos.
-3. `createRouter()` declara as rotas da feature e conecta handlers ao container de DI.
-4. Zod pode validar `body`, `params`, `querystring` e `headers` por rota.
+- `GET /ping`
+- `GET /`
+- `GET /health`
+- `GET /metrics`
 
-## Exemplo real de feature
+## Como pensar o framework
 
-Um fluxo mais representativo costuma ficar assim:
+No V12, cada feature tende a ficar próxima de si mesma:
+
+```txt
+src/
+  features/
+    users/
+      users.module.ts
+      users.routes.ts
+      users.controller.ts
+      users.service.ts
+      users.schemas.ts
+      users.repository.ts
+  app.ts
+  server.ts
+```
+
+O fluxo principal é:
+
+1. `createRouter()` declara as rotas.
+2. `defineModule()` empacota a feature.
+3. `createApp()` monta a aplicação Fastify, container, hooks e plugins.
+
+## Exemplo mais realista
 
 ```ts
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { createApp, createRouter, defineModule } from 'v12';
+import { createApp, createRouter, defineModule } from '@eddiecbrl/v12';
 
 const createUserSchema = {
   body: z.object({
@@ -124,77 +158,69 @@ const app = await createApp({
     helmet: true,
   },
 });
+
+await app.listen({ port: 3000 });
 ```
 
-Com isso, o framework expora:
+## O que já vem no core
 
-- `GET /users`
-- `POST /users`
-- `GET /health`
-- `GET /metrics`
-- `GET /docs` quando a documentacao OpenAPI estiver habilitada
-
-## O que vem no core
-
-- DI nativa com providers por classe, token ou valor
-- base HTTP sobre Fastify com hooks e middlewares
-- validacao por schema
-- seguranca com `cors`, `helmet`, cookies, upload e websocket
+- DI com classes, tokens, factories e values
+- Fastify como runtime HTTP
+- validação de `body`, `params`, `querystring` e `headers`
+- padrões de resiliência: retry, timeout, fallback, bulkhead e circuit breaker
+- recursos de segurança como CORS, Helmet, cookies, multipart e WebSocket
 - observabilidade com logs estruturados, `x-request-id`, `/health` e `/metrics`
-- auth, cache, mail, queue, storage e plugins oficiais
+- plugins como OpenAPI, SDK e devtools
 
 ## CLI
 
-A CLI acelera bastante o bootstrap. Você pode usá-la via `npx` (se o pacote estiver instalado) ou via script npm:
+A CLI pode ser usada pelo binário gerado ou via script local:
 
 ```bash
-# Via npx
-npx v12 generate feature users
-
-# Gerar um resource CRUD
-npx v12 generate resource billing invoice --adapter prisma
-
-# Gerar um mailer
-npx v12 generate mail users welcome-email
-
-# Rodar migrações
-npx v12 migrate dev
-
-# Gerar um SDK TypeScript
-npx v12 sdk
+npx v12 --help
+npm run v12 -- --help
 ```
 
-## Documentacao
+Exemplos:
 
-A documentacao completa vive em [`docs/`](./docs/) e pode ser rodada localmente com:
+```bash
+npx v12 init
+npx v12 generate feature users
+npx v12 generate resource billing invoice --adapter prisma
+npx v12 generate route users export-report --method POST --path /reports/export
+npx v12 sdk --output ./sdk.ts --url http://localhost:3000
+```
+
+## Documentação
+
+A documentação VitePress fica em [`docs/`](./docs/).
+
+Rodando localmente:
 
 ```bash
 npm run docs:dev
 ```
 
-Paginas recomendadas para comecar:
+Páginas recomendadas:
+
+- [Home da documentação](./docs/index.md)
+- [Instalação](./docs/introduction/installation.md)
+- [Quick Start](./docs/introduction/quick-start.md)
 - [Começando](./docs/getting-started.md)
-- [createApp API](./docs/api/create-app.md)
-- [defineModule API](./docs/api/define-module.md)
-- [createRouter API](./docs/api/create-router.md)
-- [Guidelines](./docs/guidelines.md)
+- [API `createApp`](./docs/api/create-app.md)
+- [API `defineModule`](./docs/api/define-module.md)
+- [API `createRouter`](./docs/api/create-router.md)
+- [API da CLI](./docs/api/cli.md)
 
-## Estrutura sugerida
+## Scripts úteis
 
-```txt
-src/
-  app.ts
-  server.ts
-features/
-  users/
-    users.module.ts
-    users.routes.ts
-    users.controller.ts
-    users.service.ts
-    users.schemas.ts
-    users.repository.ts
+```bash
+npm run build
+npm run test
+npm run typecheck
+npm run docs:build
 ```
 
-## License
+## Licença
 
 MIT
