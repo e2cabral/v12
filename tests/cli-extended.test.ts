@@ -34,8 +34,8 @@ describe('v12 cli extended scaffolding', () => {
     return dir;
   };
 
-  const baseAppSource = () => `import { createApp } from './core/http/app.js';
-import { UsersModule } from '../features/users/users.module.js';
+  const baseAppSource = () => `import { createApp } from '@eddiecbrl/v12';
+import { UsersModule } from './features/users/users.module.js';
 
 export const buildApp = () =>
   createApp({
@@ -45,16 +45,16 @@ export const buildApp = () =>
 
   it('removes a feature and unregisters it from app.ts', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     
     generateFeature('orders', { cwd });
-    expect(existsSync(join(cwd, 'features', 'orders'))).toBe(true);
+    expect(existsSync(join(cwd, 'src', 'features', 'orders'))).toBe(true);
     
     const result = removeFeature('orders', { cwd });
     expect(result.featureName).toBe('orders');
     expect(result.unregistered).toBe(true);
-    expect(existsSync(join(cwd, 'features', 'orders'))).toBe(false);
+    expect(existsSync(join(cwd, 'src', 'features', 'orders'))).toBe(false);
 
     const appSource = readFileSync(join(cwd, 'src', 'app.ts'), 'utf8');
     expect(appSource).not.toContain('OrdersModule');
@@ -63,7 +63,7 @@ export const buildApp = () =>
 
   it('generates a middleware', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     generateFeature('users', { cwd });
 
     const result = generateMiddleware('users', 'logger', { cwd });
@@ -73,7 +73,7 @@ export const buildApp = () =>
 
   it('generates a guard', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     generateFeature('users', { cwd });
 
     const result = generateGuard('users', 'is-admin', { cwd });
@@ -83,7 +83,7 @@ export const buildApp = () =>
 
   it('generates a mail template', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     generateFeature('users', { cwd });
 
     const result = generateMail('users', 'welcome', { cwd });
@@ -92,9 +92,9 @@ export const buildApp = () =>
   });
 
   it('unregisters module from app source correctly', () => {
-    const source = `import { createApp } from './core/http/app.js';
-import { UsersModule } from '../features/users/users.module.js';
-import { OrdersModule } from '../features/orders/orders.module.js';
+    const source = `import { createApp } from '@eddiecbrl/v12';
+import { UsersModule } from './features/users/users.module.js';
+import { OrdersModule } from './features/orders/orders.module.js';
 
 export const buildApp = () =>
   createApp({

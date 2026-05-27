@@ -34,11 +34,11 @@ describe('v12 cli scaffolding', () => {
 
   it('generates a full feature and registers it in app.ts', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(
       join(cwd, 'src', 'app.ts'),
-      `import { createApp } from './core/http/app.js';
-import { UsersModule } from '../features/users/users.module.js';
+      `import { createApp } from '@eddiecbrl/v12';
+import { UsersModule } from './features/users/users.module.js';
 
 export const buildApp = () =>
   createApp({
@@ -51,26 +51,26 @@ export const buildApp = () =>
 
     expect(result.featureName).toBe('orders');
     expect(result.registered).toBe(true);
-    expect(existsSync(join(cwd, 'features', 'orders', 'orders.module.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'orders', 'orders.module.ts'))).toBe(
       true,
     );
-    expect(existsSync(join(cwd, 'features', 'orders', 'orders.test.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'orders', 'orders.test.ts'))).toBe(
       true,
     );
 
     const appSource = readFileSync(join(cwd, 'src', 'app.ts'), 'utf8');
     expect(appSource).toContain(
-      `import { OrdersModule } from '../features/orders/orders.module.js';`,
+      `import { OrdersModule } from './features/orders/orders.module.js';`,
     );
     expect(appSource).toContain('modules: [UsersModule, OrdersModule]');
   });
 
   it('supports generating without auto registration', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(
       join(cwd, 'src', 'app.ts'),
-      `import { createApp } from './core/http/app.js';
+      `import { createApp } from '@eddiecbrl/v12';
 
 export const buildApp = () =>
   createApp({
@@ -91,7 +91,7 @@ export const buildApp = () =>
 
   it('supports minimal feature template', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
 
     const result = generateFeature('catalog', {
@@ -100,20 +100,20 @@ export const buildApp = () =>
     });
 
     expect(result.template).toBe('minimal');
-    expect(existsSync(join(cwd, 'features', 'catalog', 'catalog.module.ts'))).toBe(true);
-    expect(existsSync(join(cwd, 'features', 'catalog', 'catalog.service.ts'))).toBe(true);
-    expect(existsSync(join(cwd, 'features', 'catalog', 'catalog.repository.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'catalog', 'catalog.module.ts'))).toBe(true);
+    expect(existsSync(join(cwd, 'src', 'features', 'catalog', 'catalog.service.ts'))).toBe(true);
+    expect(existsSync(join(cwd, 'src', 'features', 'catalog', 'catalog.repository.ts'))).toBe(
       false,
     );
-    expect(existsSync(join(cwd, 'features', 'catalog', 'catalog.errors.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'catalog', 'catalog.errors.ts'))).toBe(
       false,
     );
-    expect(existsSync(join(cwd, 'features', 'catalog', 'catalog.test.ts'))).toBe(false);
+    expect(existsSync(join(cwd, 'src', 'features', 'catalog', 'catalog.test.ts'))).toBe(false);
   });
 
   it('registers a module import only once', () => {
-    const source = `import { createApp } from './core/http/app.js';
-import { UsersModule } from '../features/users/users.module.js';
+    const source = `import { createApp } from '@eddiecbrl/v12';
+import { UsersModule } from './features/users/users.module.js';
 
 export const buildApp = () =>
   createApp({
@@ -130,7 +130,7 @@ export const buildApp = () =>
 
   it('generates a service and repository inside an existing feature', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
 
@@ -147,7 +147,7 @@ export const buildApp = () =>
     );
 
     const moduleSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.module.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.module.ts'),
       'utf8',
     );
 
@@ -165,7 +165,7 @@ export const buildApp = () =>
 
   it('generates a controller and registers it in the feature module', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
 
@@ -178,7 +178,7 @@ export const buildApp = () =>
     );
 
     const moduleSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.module.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.module.ts'),
       'utf8',
     );
     expect(moduleSource).toContain(
@@ -189,7 +189,7 @@ export const buildApp = () =>
 
   it('adds a schema export into the feature schemas file', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
 
@@ -197,7 +197,7 @@ export const buildApp = () =>
 
     expect(schema.exportName).toBe('adminFilterSchema');
     const schemasSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.schemas.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.schemas.ts'),
       'utf8',
     );
     expect(schemasSource).toContain('export const adminFilterSchema =');
@@ -206,7 +206,7 @@ export const buildApp = () =>
 
   it('adds a route into an existing feature files', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
 
@@ -219,15 +219,15 @@ export const buildApp = () =>
     expect(result.routePath).toBe('/admin/list');
 
     const routesSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.routes.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.routes.ts'),
       'utf8',
     );
     const controllerSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.controller.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.controller.ts'),
       'utf8',
     );
     const schemasSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.schemas.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.schemas.ts'),
       'utf8',
     );
 
@@ -239,7 +239,7 @@ export const buildApp = () =>
 
   it('adds a route with a dedicated controller and named schema', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
 
@@ -255,19 +255,19 @@ export const buildApp = () =>
     expect(result.schemaName).toBe('reportExportSchema');
 
     const routeSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.routes.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.routes.ts'),
       'utf8',
     );
     const controllerSource = readFileSync(
-      join(cwd, 'features', 'users', 'report-admin.controller.ts'),
+      join(cwd, 'src', 'features', 'users', 'report-admin.controller.ts'),
       'utf8',
     );
     const schemaSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.schemas.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.schemas.ts'),
       'utf8',
     );
     const moduleSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.module.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.module.ts'),
       'utf8',
     );
 
@@ -282,7 +282,7 @@ export const buildApp = () =>
   });
 
   it('registers module providers only once', () => {
-    const source = `import { defineModule } from '../../core/http/module.js';
+    const source = `import { defineModule } from '../@eddiecbrl/v12';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
 
@@ -313,7 +313,7 @@ export const UsersModule = defineModule({
 
   it('generates a CRUD resource with controller, service, repository, schemas and routes', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
 
@@ -323,35 +323,35 @@ export const UsersModule = defineModule({
     });
 
     expect(result.basePath).toBe('/profiles');
-    expect(existsSync(join(cwd, 'features', 'users', 'profile-card.controller.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.controller.ts'))).toBe(
       true,
     );
-    expect(existsSync(join(cwd, 'features', 'users', 'profile-card.service.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.service.ts'))).toBe(
       true,
     );
-    expect(existsSync(join(cwd, 'features', 'users', 'profile-card.repository.ts'))).toBe(
+    expect(existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.repository.ts'))).toBe(
       true,
     );
     expect(existsSync(result.testPath)).toBe(true);
 
     const routesSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.routes.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.routes.ts'),
       'utf8',
     );
     const controllerSource = readFileSync(
-      join(cwd, 'features', 'users', 'profile-card.controller.ts'),
+      join(cwd, 'src', 'features', 'users', 'profile-card.controller.ts'),
       'utf8',
     );
     const schemasSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.schemas.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.schemas.ts'),
       'utf8',
     );
     const errorsSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.errors.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.errors.ts'),
       'utf8',
     );
     const moduleSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.module.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.module.ts'),
       'utf8',
     );
 
@@ -379,7 +379,7 @@ export const UsersModule = defineModule({
 
   it('removes a generated CRUD resource and cleans key references', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
     generateCrudResource('users', 'profile-card', {
@@ -394,36 +394,36 @@ export const UsersModule = defineModule({
 
     expect(result.removed).toBe(true);
     expect(
-      existsSync(join(cwd, 'features', 'users', 'profile-card.controller.ts')),
+      existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.controller.ts')),
     ).toBe(false);
     expect(
-      existsSync(join(cwd, 'features', 'users', 'profile-card.service.ts')),
+      existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.service.ts')),
     ).toBe(false);
     expect(
-      existsSync(join(cwd, 'features', 'users', 'profile-card.repository.ts')),
+      existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.repository.ts')),
     ).toBe(false);
     expect(
-      existsSync(join(cwd, 'features', 'users', 'profile-card.test.ts')),
+      existsSync(join(cwd, 'src', 'features', 'users', 'profile-card.test.ts')),
     ).toBe(false);
 
     const routesSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.routes.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.routes.ts'),
       'utf8',
     );
     const moduleSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.module.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.module.ts'),
       'utf8',
     );
     const schemasSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.schemas.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.schemas.ts'),
       'utf8',
     );
     const typesSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.types.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.types.ts'),
       'utf8',
     );
     const errorsSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.errors.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.errors.ts'),
       'utf8',
     );
 
@@ -438,7 +438,7 @@ export const UsersModule = defineModule({
 
   it('removes a generated route and cleans controller/schema references', () => {
     const cwd = createWorkspace();
-    mkdirSync(join(cwd, 'features'), { recursive: true });
+    mkdirSync(join(cwd, 'src', 'features'), { recursive: true });
     writeFileSync(join(cwd, 'src', 'app.ts'), baseAppSource());
     generateFeature('users', { cwd });
     generateRoute('users', 'export-report', {
@@ -460,15 +460,15 @@ export const UsersModule = defineModule({
     expect(result.removed).toBe(true);
 
     const routeSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.routes.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.routes.ts'),
       'utf8',
     );
     const controllerSource = readFileSync(
-      join(cwd, 'features', 'users', 'report-admin.controller.ts'),
+      join(cwd, 'src', 'features', 'users', 'report-admin.controller.ts'),
       'utf8',
     );
     const schemaSource = readFileSync(
-      join(cwd, 'features', 'users', 'users.schemas.ts'),
+      join(cwd, 'src', 'features', 'users', 'users.schemas.ts'),
       'utf8',
     );
 
@@ -486,7 +486,7 @@ const createWorkspace = () => {
   return dir;
 };
 
-const baseAppSource = () => `import { createApp } from './core/http/app.js';
+const baseAppSource = () => `import { createApp } from '@eddiecbrl/v12';
 
 export const buildApp = () =>
   createApp({

@@ -68,7 +68,7 @@ export const generateFeature = (
   const featureName = toKebabCase(rawName);
   const featureSlug = toCamelCase(featureName);
   const featureClass = toPascalCase(featureName);
-  const baseDir = join(cwd, 'features', featureName);
+  const baseDir = join(cwd, 'src', 'features', featureName);
 
   if (existsSync(baseDir)) {
     throw new Error(`Feature "${featureName}" already exists`);
@@ -736,7 +736,7 @@ export class InMemory${resourceClass}Repository implements ${resourceClass}Repos
 
   writeFileSync(
     service.filePath,
-    `import type { EventBus } from '../../core/events/event-bus.js';
+    `import type { EventBus } from '@eddiecbrl/v12';
 import { ${notFoundErrorClass} } from './${featureName}.errors.js';
 import type {
   Create${resourceClass}Input,
@@ -802,7 +802,7 @@ export class ${resourceClass}Service {
 
   writeFileSync(
     controller.filePath,
-    `import type { RequestContext } from '../../core/http/router.js';
+    `import type { RequestContext } from '@eddiecbrl/v12';
 import { ${resourceClass}Service } from './${resourceName}.service.js';
 
 export class ${resourceClass}Controller {
@@ -889,10 +889,10 @@ export class ${resourceClass}Controller {
   );
   writeFileSync(schemasPath, nextSchemas);
 
-  writeFileSync(
+    writeFileSync(
     testPath,
     `import { describe, expect, it } from 'vitest';
-import { createTestingApp } from '../../core/testing/testing-app.js';
+import { createTestingApp } from '@eddiecbrl/v12';
 import { ${toPascalCase(featureName)}Module } from './${featureName}.module.js';
 
 describe('${resourceName} resource', () => {
@@ -1177,7 +1177,7 @@ export const removeFeature = (rawName: string, options: { cwd?: string } = {}) =
   const cwd = options.cwd ?? process.cwd();
   const featureName = toKebabCase(rawName);
   const featureClass = toPascalCase(featureName);
-  const baseDir = join(cwd, 'features', featureName);
+  const baseDir = join(cwd, 'src', 'features', featureName);
 
   if (!existsSync(baseDir)) {
     throw new Error(`Feature "${featureName}" does not exist`);
@@ -1223,7 +1223,7 @@ export const generateMiddleware = (
     `Middleware "${middlewareName}" already exists in feature "${featureName}"`,
   );
 
-  const content = `import type { RequestContext } from '../../core/http/router.js';
+  const content = `import type { RequestContext } from '@eddiecbrl/v12';
 
 export const ${middlewareSlug}Middleware = async ({ request }: RequestContext) => {
   // Middleware logic here
@@ -1258,8 +1258,7 @@ export const generateGuard = (
     `Guard "${guardName}" already exists in feature "${featureName}"`,
   );
 
-  const content = `import type { RouteMiddleware } from '../../core/http/router.js';
-import { ForbiddenError } from '../../core/errors/app-error.js';
+  const content = `import { ForbiddenError, type RouteMiddleware } from '@eddiecbrl/v12';
 
 export const ${guardSlug}Guard = (): RouteMiddleware => async ({ request, container }) => {
   // Guard logic here
@@ -1299,8 +1298,7 @@ export const generateMail = (
     `Mail "${mailName}" already exists in feature "${featureName}"`,
   );
 
-  const content = `import { Mailable } from '../../core/mail/mailable.js';
-import type { MailMessage } from '../../core/mail/mail-adapter.js';
+  const content = `import { Mailable, type MailMessage } from '@eddiecbrl/v12';
 
 export class ${mailClass}Mail extends Mailable {
   constructor(private readonly data: any) {
@@ -1331,7 +1329,7 @@ export const registerModuleInApp = (
   featureName: string,
   featureClass: string,
 ) => {
-  const importLine = `import { ${featureClass}Module } from '../features/${featureName}/${featureName}.module.js';`;
+  const importLine = `import { ${featureClass}Module } from './features/${featureName}/${featureName}.module.js';`;
 
   let nextSource = source;
   if (!nextSource.includes(importLine)) {
@@ -1372,7 +1370,7 @@ export const unregisterModuleFromApp = (
   featureName: string,
   featureClass: string,
 ) => {
-  const importLine = `import { ${featureClass}Module } from '../features/${featureName}/${featureName}.module.js';`;
+  const importLine = `import { ${featureClass}Module } from './features/${featureName}/${featureName}.module.js';`;
 
   let nextSource = source.replace(importLine, '').replace(/^\s*[\r\n]/gm, '');
 
@@ -1435,7 +1433,7 @@ const resolveFeatureContext = (
   const featureName = toKebabCase(rawFeatureName);
   const featureSlug = toCamelCase(featureName);
   const featureClass = toPascalCase(featureName);
-  const baseDir = join(cwd, 'features', featureName);
+  const baseDir = join(cwd, 'src', 'features', featureName);
 
   if (!existsSync(baseDir)) {
     if (autoCreate) {
@@ -1717,7 +1715,7 @@ export const get${featureClass}Schema = {
   }),
 };
 `,
-  [`${featureName}.errors.ts`]: `import { NotFoundError } from '../../src/core/errors/app-error.js';
+  [`${featureName}.errors.ts`]: `import { NotFoundError } from '@eddiecbrl/v12';
 
 export class ${featureClass}NotFoundError extends NotFoundError {
   constructor() {
@@ -1758,7 +1756,7 @@ export class InMemory${featureClass}Repository implements ${featureClass}Reposit
   }
 }
 `,
-  [`${featureName}.service.ts`]: `import type { EventBus } from '../../src/core/events/event-bus.js';
+  [`${featureName}.service.ts`]: `import type { EventBus } from '@eddiecbrl/v12';
 import { ${featureClass}NotFoundError } from './${featureName}.errors.js';
 import type { Create${featureClass}Input } from './${featureName}.types.js';
 import {
@@ -1795,7 +1793,7 @@ export class ${featureClass}Service {
   }
 }
 `,
-  [`${featureName}.controller.ts`]: `import type { RequestContext } from '../../src/core/http/router.js';
+  [`${featureName}.controller.ts`]: `import type { RequestContext } from '@eddiecbrl/v12';
 import { ${featureClass}Service } from './${featureName}.service.js';
 
 export class ${featureClass}Controller {
@@ -1812,7 +1810,7 @@ export class ${featureClass}Controller {
     this.service.create${featureClass}(request.body as { name: string });
 }
 `,
-  [`${featureName}.routes.ts`]: `import { createRouter } from '../../src/core/http/router.js';
+  [`${featureName}.routes.ts`]: `import { createRouter } from '@eddiecbrl/v12';
 import { ${featureClass}Controller } from './${featureName}.controller.js';
 import { create${featureClass}Schema, get${featureClass}Schema } from './${featureName}.schemas.js';
 
@@ -1836,7 +1834,7 @@ export const build${featureClass}Routes = () => {
   return router.build();
 };
 `,
-  [`${featureName}.module.ts`]: `import { defineModule } from '../../src/core/http/module.js';
+  [`${featureName}.module.ts`]: `import { defineModule } from '@eddiecbrl/v12';
 import { ${featureClass}Controller } from './${featureName}.controller.js';
 import { build${featureClass}Routes } from './${featureName}.routes.js';
 import {
@@ -1856,7 +1854,7 @@ export const ${featureClass}Module = defineModule({
 });
 `,
   [`${featureName}.test.ts`]: `import { describe, expect, it } from 'vitest';
-import { createTestingApp } from '../../core/testing/testing-app.js';
+import { createTestingApp } from '@eddiecbrl/v12';
 import { ${featureClass}Module } from './${featureName}.module.js';
 
 describe('${featureName} feature', () => {
@@ -1908,7 +1906,7 @@ describe('${featureName} feature', () => {
 }
 `;
 
-    minimalFiles[`${featureName}.controller.ts`] = `import type { RequestContext } from '../../core/http/router.js';
+    minimalFiles[`${featureName}.controller.ts`] = `import type { RequestContext } from '@eddiecbrl/v12';
 import { ${featureClass}Service } from './${featureName}.service.js';
 
 export class ${featureClass}Controller {
@@ -1926,7 +1924,7 @@ export class ${featureClass}Controller {
 }
 `;
 
-    minimalFiles[`${featureName}.module.ts`] = `import { defineModule } from '../../core/http/module.js';
+    minimalFiles[`${featureName}.module.ts`] = `import { defineModule } from '@eddiecbrl/v12';
 import { ${featureClass}Controller } from './${featureName}.controller.js';
 import { build${featureClass}Routes } from './${featureName}.routes.js';
 import { ${featureClass}Service } from './${featureName}.service.js';
@@ -1972,8 +1970,7 @@ export const initProject = () => {
   const files = [
     {
       path: join('src', 'app.ts'),
-      content: `import { createApp } from './core/http/app.js';
-import { pluginOpenApi } from './core/swagger/openapi.js';
+      content: `import { createApp, pluginOpenApi } from '@eddiecbrl/v12';
 
 export const buildApp = () =>
   createApp({
@@ -1990,7 +1987,7 @@ export const buildApp = () =>
     {
       path: join('src', 'server.ts'),
       content: `import { buildApp } from './app.js';
-import { defineConfig, env } from './core/config/env.js';
+import { defineConfig, env } from '@eddiecbrl/v12';
 
 const config = defineConfig({
   PORT: env.number().default(3000),
