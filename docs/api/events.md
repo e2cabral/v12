@@ -1,23 +1,64 @@
 # Events API
 
-O V12 inclui um `EventBus` integrado para facilitar a comunicação assíncrona e o desacoplamento entre diferentes partes da aplicação.
+O V12 inclui um `EventBus` simples para comunicação assíncrona entre partes da aplicação e um registro automático de listeners via `defineModule()`.
 
-## EventBus
+## Peças principais
 
-O `EventBus` permite registrar listeners para eventos específicos e disparar esses eventos de qualquer lugar que tenha acesso ao container de DI.
+- `EventBus`
+- `module.events`
+- `EventRegistry`
 
-### Métodos
+## `EventBus`
 
-- `on(event, handler)`: Registra um listener para um evento.
-- `emit(event, payload)`: Dispara um evento de forma síncrona (não aguarda os handlers).
-- `emitAsync(event, payload)`: Dispara um evento e aguarda a execução de todos os handlers (`Promise.all`).
+O `EventBus` oferece três operações:
 
-## Uso em Módulos
+- `on(event, handler)`
+- `emit(event, payload)`
+- `emitAsync(event, payload)`
 
-A forma mais comum de usar eventos é registrá-los na definição do módulo usando a propriedade `events`.
+## Exemplo direto
 
 ```ts
-import { defineModule } from 'v12';
+import { EventBus } from '@eddiecbrl/v12';
+
+const bus = new EventBus();
+
+bus.on('user.created', async (payload) => {
+  console.log('novo usuário', payload);
+});
+
+bus.emit('user.created', { id: 'u_1' });
+await bus.emitAsync('user.created', { id: 'u_2' });
+```
+
+## Diferença entre `emit` e `emitAsync`
+
+### `emit`
+
+Dispara os handlers sem aguardar sua conclusão.
+
+```ts
+bus.emit('user.created', user);
+```
+
+Bom para side effects que não precisam bloquear o fluxo principal.
+
+### `emitAsync`
+
+Aguarda todos os handlers terminarem.
+
+```ts
+await bus.emitAsync('invoice.paid', invoice);
+```
+
+Use quando a chamada seguinte depende da conclusão dos listeners.
+
+## Registro de eventos no módulo
+
+A forma mais comum no V12 é declarar listeners em `defineModule()`:
+
+```ts
+import { defineModule } from '@eddiecbrl/v12';
 
 export const UsersModule = defineModule({
   name: 'users',
@@ -25,46 +66,159 @@ export const UsersModule = defineModule({
     {
       event: 'user.created',
       handler: async (payload) => {
-        console.log('Usuário criado:', payload);
-      }
-    }
+        console.log('usuário criado', payload);
+      },
+    },
   ],
-  // ...
 });
 ```
 
-## Disparando Eventos
+## Tipos de handler suportados
 
-Você pode injetar o `EventBus` em seus services ou use cases para disparar eventos.
+O registry aceita:
+
+- função simples
+- classe resolvida pelo container
+- token `string` ou `symbol` resolvido pelo container
+
+## Handler funcional
 
 ```ts
-import { EventBus } from 'v12';
+events: [
+  {
+    event: 'user.created',
+    handler: async (payload) => {
+      console.log(payload);
+    },
+  },
+]
+```
+
+## Handler por classe com DI
+
+Se o handler for uma classe registrada no container, o registry tenta resolvê-la e chamar seu método `handle`.
+
+```ts
+import { EventBus, defineModule } from '@eddiecbrl/v12';
+
+class SendWelcomeEmail {
+  static inject = ['MailService', 'EventBus'] as const;
+
+  constructor(
+    private readonly mailService: any,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async handle(user: { email: string }) {
+    await this.mailService.send(user.email, 'Bem-vindo');
+  }
+}
+
+export const UsersModule = defineModule({
+  name: 'users',
+  providers: [SendWelcomeEmail],
+  events: [
+    {
+      event: 'user.created',
+      handler: SendWelcomeEmail,
+    },
+  ],
+});
+```
+
+## Handler por token
+
+```ts
+const SEND_AUDIT = Symbol('SEND_AUDIT');
+
+export const UsersModule = defineModule({
+  name: 'users',
+  providers: [
+    {
+      provide: SEND_AUDIT,
+      useValue: async (payload: any) => {
+        console.log('audit', payload);
+      },
+    },
+  ],
+  events: [
+    {
+      event: 'user.deleted',
+      handler: SEND_AUDIT,
+    },
+  ],
+});
+```
+
+## Retry em listeners
+
+Hoje a resiliência de eventos cobre `retry`.
+
+```ts
+export const UsersModule = defineModule({
+  name: 'users',
+  events: [
+    {
+      event: 'user.created',
+      handler: SendWelcomeEmail,
+      resilience: {
+        retry: {
+          attempts: 3,
+          delay: 100,
+        },
+      },
+    },
+  ],
+});
+```
+
+## Emitindo eventos a partir de services
+
+O `EventBus` é registrado no container e pode ser injetado.
+
+```ts
+import { EventBus } from '@eddiecbrl/v12';
 
 export class CreateUserService {
-  constructor(private events: EventBus) {}
+  static inject = ['EventBus'] as const;
 
-  async execute(data: any) {
-    // ... lógica de criação
-    const user = { id: 1, email: 'user@example.com' };
+  constructor(private readonly events: EventBus) {}
 
-    // Dispara o evento
+  async execute(data: { email: string }) {
+    const user = { id: 'u_1', ...data };
+
     this.events.emit('user.created', user);
-    
+
     return user;
   }
 }
 ```
 
-## Eventos Assíncronos
+## Como o registry resolve handlers
 
-Se você precisar garantir que todos os listeners terminaram de processar antes de continuar, use `emitAsync`.
+Na prática:
 
-```ts
-await this.events.emitAsync('order.placed', order);
-```
+1. o módulo declara `events`
+2. `createApp()` entrega essas definições ao `EventRegistry`
+3. o registry conecta cada evento ao `EventBus`
+4. quando o evento dispara, o handler é resolvido
+5. se houver `retry`, ele é aplicado ao listener
 
-## Boas Práticas
+## Boas práticas
 
-- Use eventos para ações que não fazem parte do fluxo principal e que podem falhar sem interromper a operação (ex: envio de e-mail de boas-vindas).
-- Mantenha os payloads dos eventos pequenos e contenha apenas os dados necessários (ex: IDs em vez de objetos completos).
-- Evite dependências circulares através de eventos.
+- use eventos para side effects e integração entre partes do sistema
+- prefira payloads pequenos e estáveis
+- para listeners com dependências, use classe com `handle()`
+- evite colocar regra principal do caso de uso dentro do listener
+
+## Limites atuais
+
+- não há persistência de eventos embutida
+- não há fila distribuída embutida no `EventBus`
+- resiliência em eventos hoje se limita a `retry`
+
+## Links relacionados
+
+- [defineModule](/api/define-module)
+- [Resiliência](/api/resilience)
+- [Conceitos de execução](/concepts/execution)
