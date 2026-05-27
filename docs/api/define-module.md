@@ -1,6 +1,6 @@
 # defineModule
 
-`defineModule()` descreve uma feature do `v12`: nome, rotas, providers, middlewares, eventos e outros recursos anexos.
+`defineModule()` descreve uma feature do V12. Ele funciona como o ponto de montagem do domínio: nome, prefixo, providers, rotas, middlewares, eventos, jobs e i18n local.
 
 ## Assinatura
 
@@ -8,35 +8,143 @@
 defineModule(definition: ModuleDefinition): ModuleDefinition
 ```
 
-## Campos do modulo
-
-- `name`: nome da feature e prefixo padrao das rotas
-- `prefix`: sobrescreve o prefixo padrao (ex: `/api/users`)
-- `routes`: rotas construidas com `createRouter().build()`
-- `providers`: lista de `Provider` (classes, tokens ou valores) registrados no container de DI
-- `middlewares`: middlewares de módulo (`RouteMiddleware[]`) executados em todas as rotas da feature
-- `events`: lista de objetos `{ event: string, handler: EventHandler }` para registro automático no `EventBus`
-- `jobs`: definições de jobs agendados ou em background
-- `i18n`: dicionário de traduções locais (`Record<string, any>`) mesclado ao serviço global de i18n
-
-## Exemplo minimo
+## Exemplo mínimo
 
 ```ts
+import { defineModule } from '@eddiecbrl/v12';
+import { UsersController } from './users.controller.js';
+import { UsersService } from './users.service.js';
+import { usersRoutes } from './users.routes.js';
+
 export const UsersModule = defineModule({
   name: 'users',
   providers: [UsersService, UsersController],
-  routes: buildUsersRoutes(),
+  routes: usersRoutes,
 });
 ```
 
-## Exemplo com providers, eventos e i18n
+## Campos disponíveis
+
+### `name`
+
+Nome da feature. Também é usado como prefixo padrão das rotas.
 
 ```ts
-import { defineModule } from 'v12';
+name: 'users'
+```
+
+Sem `prefix` explícito, a base do módulo será `'/users'`.
+
+### `prefix`
+
+Sobrescreve o prefixo padrão.
+
+```ts
+prefix: '/api/v1/users'
+```
+
+Use isso quando a URL pública precisar fugir do padrão `/${name}`.
+
+### `routes`
+
+Recebe o resultado de `createRouter().build()`.
+
+```ts
+routes: usersRoutes
+```
+
+### `providers`
+
+Lista de providers registrados no container.
+
+Aceita:
+
+- classes
+- `{ provide, useClass }`
+- `{ provide, useValue }`
+- `{ provide, useFactory }`
+
+Exemplo:
+
+```ts
+const USERS_REPOSITORY = Symbol('USERS_REPOSITORY');
+
+providers: [
+  { provide: USERS_REPOSITORY, useClass: UsersRepository },
+  UsersService,
+  UsersController,
+]
+```
+
+### `middlewares`
+
+Middlewares executados em todas as rotas da feature.
+
+```ts
+middlewares: [
+  async ({ request }) => {
+    request.headers['x-feature'] = 'users';
+  },
+]
+```
+
+### `events`
+
+Handlers registrados automaticamente no `EventBus`.
+
+```ts
+events: [
+  {
+    event: 'user.created',
+    handler: async (payload) => {
+      console.log('new user', payload);
+    },
+  },
+]
+```
+
+Cada item também pode receber configuração de retry:
+
+```ts
+events: [
+  {
+    event: 'invoice.paid',
+    handler: InvoicePaidHandler,
+    resilience: {
+      retry: {
+        attempts: 3,
+      },
+    },
+  },
+]
+```
+
+### `jobs`
+
+Define jobs de background ligados ao módulo.
+
+### `i18n`
+
+Mescla traduções locais da feature ao serviço global de i18n.
+
+```ts
+i18n: {
+  'pt-BR': {
+    users: {
+      created: 'Usuário criado com sucesso',
+    },
+  },
+}
+```
+
+## Exemplo mais completo
+
+```ts
+import { defineModule } from '@eddiecbrl/v12';
 import { BillingController } from './billing.controller.js';
 import { BillingService } from './billing.service.js';
 import { BILLING_REPOSITORY, BillingRepository } from './billing.repository.js';
-import { buildBillingRoutes } from './billing.routes.js';
+import { billingRoutes } from './billing.routes.js';
 
 export const BillingModule = defineModule({
   name: 'billing',
@@ -46,10 +154,10 @@ export const BillingModule = defineModule({
     BillingService,
     BillingController,
   ],
-  routes: buildBillingRoutes(),
+  routes: billingRoutes,
   middlewares: [
     async ({ request }) => {
-      request.headers['x-feature'] = 'billing';
+      request.headers['x-domain'] = 'billing';
     },
   ],
   events: [
@@ -61,12 +169,7 @@ export const BillingModule = defineModule({
     },
   ],
   i18n: {
-    en: {
-      billing: {
-        paid: 'Invoice paid successfully',
-      },
-    },
-    pt: {
+    'pt-BR': {
       billing: {
         paid: 'Fatura paga com sucesso',
       },
@@ -75,24 +178,49 @@ export const BillingModule = defineModule({
 });
 ```
 
-## Boas praticas
-
-- um modulo por dominio de negocio
-- providers internos da feature devem morar perto dela
-- mantenha controllers finos e regras em services
-- use `prefix` apenas quando a URL precisar fugir do padrao `/${name}`
-
 ## O que acontece no runtime
 
-- o modulo e lido no bootstrap do `createApp()`
-- seus providers sao registrados no container
-- suas traducoes sao anexadas ao `I18nService`
-- seus listeners entram no `EventBus`
-- suas rotas recebem o prefixo calculado pelo framework
+Quando `createApp()` processa um módulo:
+
+1. registra os providers no container global
+2. conecta traduções locais ao i18n
+3. registra handlers de eventos
+4. calcula o prefixo final das rotas
+5. anexa middlewares da feature ao pipeline de request
+
+## Como pensar os limites de um módulo
+
+Uma boa pergunta prática é: "essa regra pertence a qual domínio?".
+
+Se a resposta for clara, normalmente esse domínio merece o próprio módulo.
+
+### Bons sinais
+
+- regras e entidades giram em torno do mesmo problema de negócio
+- as rotas da feature compartilham dependências
+- existe vocabulário próprio do domínio
+
+### Maus sinais
+
+- feature com dependências demais de outras features
+- módulo virando pasta genérica de utilidades
+- controllers contendo regra de negócio demais
+
+## Exemplo de organização sugerida
+
+```txt
+src/features/users/
+  users.module.ts
+  users.routes.ts
+  users.controller.ts
+  users.service.ts
+  users.schemas.ts
+  users.repository.ts
+```
 
 ## Links relacionados
 
-- [Modules](/concepts/modules)
 - [createRouter](/api/create-router)
 - [createApp](/api/create-app)
-- [CLI](/api/cli)
+- [Modules](/concepts/modules)
+- [Containers](/concepts/containers)

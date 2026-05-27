@@ -1,115 +1,206 @@
 # Security API
 
-O V12 fornece middlewares e plugins para proteger suas rotas, gerenciando autenticação, autorização e controle de tráfego.
+O V12 oferece guards e opções de segurança no `createApp()` para proteger rotas, trabalhar com autenticação e limitar tráfego.
 
-## Guards
+## Guards disponíveis
 
-Os guards são middlewares que protegem o acesso às rotas. Eles podem ser importados de `v12`.
+- `auth()`
+- `jwt(options)`
+- `apiKey(options)`
+- `role(expectedRoles)`
+- `policy(handler)`
 
-### auth
+Todos são middlewares de rota.
 
-Verifica apenas se o header `Authorization` está presente.
+## `auth()`
+
+Verifica apenas se existe header `Authorization`.
 
 ```ts
-import { auth } from 'v12';
+import { auth } from '@eddiecbrl/v12';
 
 router.get('/private', {
   middlewares: [auth()],
-  handler: () => ({ message: 'Acesso permitido' })
+  handler: () => ({ message: 'Acesso permitido' }),
 });
 ```
 
-### jwt
+Use quando você só quer garantir a presença de autenticação na borda e delegar a validação completa para outro ponto.
 
-Verifica e decodifica um token JWT (do header Bearer ou Cookie). O payload decodificado é anexado ao objeto `request.auth`.
+## `jwt(options)`
+
+Valida um JWT e anexa o payload em `request.auth`.
 
 ```ts
-import { jwt } from 'v12';
+import { jwt } from '@eddiecbrl/v12';
 
 router.get('/me', {
-  middlewares: [jwt({ secret: 'seu-segredo' })],
-  handler: ({ request }) => ({ user: request.auth })
+  middlewares: [
+    jwt({ secret: process.env.JWT_SECRET! }),
+  ],
+  handler: ({ request }) => ({
+    user: (request as any).auth,
+  }),
 });
 ```
 
-### apiKey
-
-Protege a rota usando uma API Key.
+Se `cookieName` for informado, a guard tenta primeiro ler do cookie; se não encontrar, cai para `Authorization: Bearer ...`.
 
 ```ts
-import { apiKey } from 'v12';
+jwt({
+  secret: process.env.JWT_SECRET!,
+  cookieName: 'sid',
+})
+```
 
-router.get('/webhook', {
-  middlewares: [apiKey({ key: 'sua-chave', headerName: 'x-api-key' })],
-  handler: () => ({ status: 'success' })
+Para isso funcionar com cookies, a app precisa ter:
+
+```ts
+createApp({
+  security: {
+    cookie: true,
+  },
+})
+```
+
+## `apiKey(options)`
+
+Protege a rota usando uma API key comparada com `timingSafeEqual`.
+
+```ts
+import { apiKey } from '@eddiecbrl/v12';
+
+router.post('/webhook', {
+  middlewares: [
+    apiKey({
+      key: process.env.WEBHOOK_SECRET!,
+      headerName: 'X-Webhook-Token',
+    }),
+  ],
+  handler: () => ({ ok: true }),
 });
 ```
 
-### role
+## `role(expectedRoles)`
 
-Verifica se o usuário possui a role necessária. Funciona em conjunto com o middleware `jwt` ou lendo o header `x-role`.
+Verifica se a role atual é compatível.
+
+Ela lê:
+
+1. `request.auth.role`, quando `jwt()` já rodou
+2. `x-role`, como fallback
 
 ```ts
-import { jwt, role } from 'v12';
+import { jwt, role } from '@eddiecbrl/v12';
 
 router.post('/settings', {
   middlewares: [
-    jwt({ secret: 'seu-segredo' }),
-    role(['admin', 'super-user'])
+    jwt({ secret: process.env.JWT_SECRET! }),
+    role(['admin', 'super-user']),
   ],
-  handler: () => ({ saved: true })
+  handler: () => ({ saved: true }),
 });
 ```
 
-### policy
+## `policy(handler)`
 
-Permite definir regras de autorização customizadas e complexas.
+Permite autorização customizada.
 
 ```ts
-import { jwt, policy } from 'v12';
+import { jwt, policy } from '@eddiecbrl/v12';
 
 const canEditPost = policy(async ({ request, container }) => {
   const posts = container.resolve(PostsService);
-  const post = await posts.findById(request.params.id);
-  return post.authorId === request.auth.sub;
+  const post = await posts.findById((request.params as any).id);
+  return post.authorId === (request as any).auth?.sub;
 });
 
 router.patch('/posts/:id', {
-  middlewares: [jwt({ secret: 'secret' }), canEditPost],
-  handler: () => ({ updated: true })
+  middlewares: [
+    jwt({ secret: process.env.JWT_SECRET! }),
+    canEditPost,
+  ],
+  handler: () => ({ updated: true }),
 });
 ```
 
-## Plugins de Segurança
+## Plugin de rate limit
 
-### Rate Limit
-
-O V12 integra o `@fastify/rate-limit` para limitar a taxa de requisições. Deve ser registrado no `createApp`.
+O projeto expõe `pluginRateLimit()` sobre `@fastify/rate-limit`.
 
 ```ts
-import { createApp, pluginRateLimit } from 'v12';
+import { createApp, pluginRateLimit } from '@eddiecbrl/v12';
 
 const app = await createApp({
   plugins: [
     pluginRateLimit({
       max: 100,
-      timeWindow: '1 minute'
-    })
-  ]
+      timeWindow: '1 minute',
+    }),
+  ],
 });
 ```
 
-## Security Options (createApp)
+O plugin já aplica defaults:
 
-Através do parâmetro `security` no `createApp`, você pode habilitar recursos globais:
+- `max: 100`
+- `timeWindow: '1 minute'`
 
-- `cors`: Habilita o plugin CORS.
-- `helmet`: Habilita o plugin Helmet para segurança de headers.
-- `cookie`: Habilita o suporte a cookies assinados.
-- `bodyLimit`: Define o tamanho máximo do body da requisição.
-- `requestTimeout`: Define o timeout global das requisições.
+## Segurança em `createApp()`
+
+O objeto `security` aceita:
+
+- `cors`
+- `helmet`
+- `bodyLimit`
+- `requestTimeout`
+- `cookie`
+
+Exemplo:
+
+```ts
+const app = await createApp({
+  security: {
+    cors: true,
+    helmet: true,
+    cookie: true,
+    bodyLimit: 1024 * 1024,
+    requestTimeout: 10_000,
+  },
+});
+```
+
+## Padrões úteis
+
+### Rota autenticada simples
+
+```ts
+middlewares: [jwt({ secret: process.env.JWT_SECRET! })]
+```
+
+### Admin
+
+```ts
+middlewares: [
+  jwt({ secret: process.env.JWT_SECRET! }),
+  role('admin'),
+]
+```
+
+### Integração interna
+
+```ts
+middlewares: [apiKey({ key: process.env.INTERNAL_API_KEY! })]
+```
+
+### Regra contextual
+
+```ts
+middlewares: [jwt({ secret }), policy(async () => true)]
+```
 
 ## Links relacionados
 
 - [Auth API](/api/auth)
+- [Guia de Autenticação](/guides/authentication)
 - [Guia de Segurança](/security/)

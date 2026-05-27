@@ -1,59 +1,44 @@
 # SDK API
 
-O V12 possui um gerador de SDK integrado que cria automaticamente um cliente TypeScript tipado para sua API. Isso garante que o seu frontend esteja sempre em sincronia com o backend.
+O V12 inclui geração de SDK TypeScript a partir das rotas registradas na aplicação.
 
 ## Como funciona
 
-O gerador percorre todos os módulos e rotas registrados, extrai os schemas do Zod e gera:
-1. Interfaces TypeScript para todos os inputs e outputs.
-2. Uma classe cliente com métodos para cada endpoint.
+O gerador percorre os módulos e rotas, lê os schemas e produz um cliente tipado.
 
-## Gerando via CLI
+## Via CLI
 
-A forma mais comum de gerar o SDK é através da CLI.
+O caminho principal é:
 
 ```bash
-v12 sdk generate --output ../frontend/src/api/sdk.ts
+npx v12 sdk --output ./sdk.ts --url http://localhost:3000
 ```
 
-## Gerando via Código
+Esse comando espera encontrar `buildApp()` exportado em `src/app.ts`.
 
-Você também pode disparar a geração do SDK programmaticamente.
+## Via código
 
 ```ts
-import { generateSDK } from 'v12';
+import { generateSDK } from '@eddiecbrl/v12';
 
-await generateSDK(app, {
-  output: './sdk.ts',
-  baseUrl: 'https://api.myapp.com'
+const sdkCode = generateSDK(app, {
+  baseUrl: 'https://api.myapp.com',
 });
 ```
 
-## Usando o SDK no Frontend
+Depois você grava esse conteúdo no arquivo desejado.
 
-O SDK gerado utiliza `fetch` por padrão e é totalmente tipado.
+## O que isso traz
 
-```ts
-import { ApiClient } from './sdk';
+- cliente tipado
+- sincronização melhor entre backend e frontend
+- menos fetch manual repetitivo
 
-const api = new ApiClient({
-  baseUrl: 'http://localhost:3000',
-  headers: () => ({
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
-  })
-});
+## Observação importante
 
-// Chamada tipada: o compilador sabe o que enviar e o que esperar
-const users = await api.users.findAll({ role: 'admin' });
-```
-
-## Vantagens
-
-- **Segurança de Tipos**: Erros de contrato entre frontend e backend são detectados em tempo de compilação.
-- **Auto-complete**: Seu editor mostrará todos os endpoints e parâmetros disponíveis.
-- **Produtividade**: Não é necessário escrever manualmente as funções de fetch e as interfaces.
+A API atual expõe `generateSDK(app, options?)` para gerar o código, enquanto a CLI cuida da leitura de `src/app.ts` e da gravação em arquivo.
 
 ## Links relacionados
 
-- [CLI Reference](/api/cli)
-- [createRouter (Schemas)](/api/create-router)
+- [CLI](/api/cli)
+- [createRouter](/api/create-router)

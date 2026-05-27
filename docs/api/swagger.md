@@ -1,72 +1,180 @@
 # Swagger & OpenAPI
 
-O V12 possui suporte nativo para geração automática de documentação da API usando o padrão OpenAPI 3.1.
+O V12 gera documentação OpenAPI a partir das rotas e schemas declarados no framework. A interface visual é servida com Scalar.
 
-## Como Funciona
+## Plugin principal
 
-Sempre que você define rotas usando Schemas do Zod, o framework é capaz de ler essas definições e gerar um documento JSON completo descrevendo os endpoints, parâmetros de entrada, tipos de dados e respostas.
+O recurso é habilitado por `pluginOpenApi()`.
 
-## Habilitando a Documentação
-
-Para habilitar a documentação, utilize o plugin `pluginOpenApi` no seu `createApp`.
+## Assinatura
 
 ```ts
-import { createApp, pluginOpenApi } from 'v12';
-import { modules } from './modules.js'; // Sua lista de módulos
+pluginOpenApi(modulesOrOptions, options?)
+```
+
+Você pode usar de duas formas:
+
+## 1. Usando os módulos já registrados na app
+
+```ts
+import { createApp, pluginOpenApi } from '@eddiecbrl/v12';
 
 const app = await createApp({
-  modules,
+  modules: [UsersModule],
   plugins: [
     pluginOpenApi({
-      title: 'Minha API Fantástica',
+      title: 'Minha API',
       version: '1.0.0',
-      description: 'Documentação técnica dos endpoints do sistema.',
-      path: '/openapi.json', // URL do arquivo JSON
-      docsPath: '/docs'      // URL da interface visual
-    })
-  ]
+      description: 'Documentação técnica da API',
+    }),
+  ],
 });
 ```
 
-Você também pode passar os módulos explicitamente como primeiro argumento se desejar filtrar ou usar uma lista diferente da global:
+## 2. Passando explicitamente a lista de módulos
 
 ```ts
-pluginOpenApi(modules, { title: 'API', version: '1.0.0' })
+pluginOpenApi([UsersModule], {
+  title: 'Minha API',
+  version: '1.0.0',
+})
 ```
 
-## Interface Visual (Scalar)
+Isso é útil quando você quer documentar um subconjunto de módulos.
 
-Por padrão, o V12 utiliza o [Scalar](https://scalar.com/) para renderizar uma interface bonita e interativa da sua documentação. Ela fica disponível no caminho definido em `docsPath` (ex: `http://localhost:3000/docs`).
+## Opções disponíveis
 
-A interface permite:
--   Visualizar todos os endpoints agrupados por módulos (tags).
--   Explorar os schemas de entrada e saída.
--   Testar as requisições diretamente pelo navegador (Try it out).
+- `title`
+- `version`
+- `description`
+- `path` padrão `/openapi.json`
+- `docsPath` padrão `/docs`
 
-## Metadados das Rotas
-
-Você pode enriquecer a documentação adicionando metadados às suas rotas.
+## Exemplo completo
 
 ```ts
-router.get('/:id', {
-  schema: { /* ... */ },
-  // O V12 extrai automaticamente o nome do módulo como tag
-  handler: async () => { /* ... */ }
+import { createApp, createRouter, defineModule, pluginOpenApi } from '@eddiecbrl/v12';
+import { z } from 'zod';
+
+const router = createRouter();
+
+router.post('/', {
+  schema: {
+    body: z.object({
+      name: z.string().describe('Nome do catálogo'),
+    }),
+  },
+  handler: async () => ({ ok: true }),
+});
+
+const CatalogModule = defineModule({
+  name: 'catalog',
+  routes: router.build(),
+});
+
+const app = await createApp({
+  modules: [CatalogModule],
+  plugins: [
+    pluginOpenApi({
+      title: 'Catalog API',
+      version: '1.0.0',
+      description: 'API de catálogo',
+    }),
+  ],
 });
 ```
 
-## Exportando o JSON
+## O que é gerado
 
-Se você precisar do arquivo OpenAPI para importar em ferramentas como Postman, Insomnia ou para gerar SDKs, basta acessar a URL definida em `path` (ex: `/openapi.json`).
+Quando o plugin está ativo:
 
-## Boas Práticas
+- `GET /openapi.json`
+- `GET /docs`
 
--   **Descrições Claras**: Adicione descrições aos seus schemas Zod usando `.describe()`, elas aparecerão na documentação.
--   **Segurança**: Em produção, você pode querer proteger o endpoint de documentação ou desabilitá-lo completamente.
--   **Versionamento**: Mantenha o campo `version` atualizado para que os consumidores da sua API saibam quando houve mudanças estruturais.
+Você pode customizar ambos os paths.
+
+## Como o documento é montado
+
+O builder atual:
+
+- usa `openapi: '3.1.0'`
+- cria `info.title`, `info.version` e `info.description`
+- agrupa rotas por módulo em `tags`
+- converte schemas Zod para JSON Schema/OpenAPI
+- documenta `body`, `params`, `querystring` e `headers`
+
+## O que entra automaticamente
+
+### Tags
+
+Cada operação recebe a tag do nome do módulo.
+
+### Operation ID
+
+O framework gera `operationId` automaticamente a partir de método + path.
+
+### Request body
+
+Se a rota tiver `schema.body`, ele entra em `requestBody`.
+
+### Parameters
+
+Se a rota tiver:
+
+- `schema.params`
+- `schema.querystring`
+- `schema.headers`
+
+eles entram em `parameters`.
+
+## Exemplo de schema documentado
+
+```ts
+import { z } from 'zod';
+
+const schema = {
+  params: z.object({
+    id: z.string().min(1).describe('ID do usuário'),
+  }),
+  querystring: z.object({
+    includePosts: z.enum(['true', 'false']).optional(),
+  }),
+  body: z.object({
+    name: z.string().min(2),
+  }),
+};
+```
+
+## Interface visual
+
+`/docs` retorna uma página HTML com Scalar apontando para o JSON OpenAPI.
+
+Na prática, isso dá uma documentação navegável com:
+
+- lista de endpoints
+- schemas de entrada
+- parâmetros
+- exemplos de payload conforme os tipos
+
+## Limites atuais
+
+É bom saber o que a implementação atual faz e o que ela ainda não faz:
+
+- respostas são documentadas com um envelope genérico de sucesso `success/data`
+- não há descrição detalhada de respostas por status por rota
+- a documentação se apoia sobretudo nos schemas de entrada
+
+Ou seja: já é bastante útil para onboarding, exploração e geração de cliente, mas ainda não substitui doc funcional mais rica quando você precisa detalhar regras de negócio complexas.
+
+## Dicas
+
+- use `.describe()` no Zod para enriquecer os schemas
+- mantenha `title` e `version` corretos
+- em produção, avalie proteger ou desabilitar `/docs`
+- se for gerar SDK externo, publique também o `/openapi.json`
 
 ## Links relacionados
 
-- [Scalar Documentation](https://scalar.com/)
-- [OpenAPI Specification](https://swagger.io/specification/)
-- [Validation API](/api/validation)
+- [Validation](/api/validation)
+- [Plugins](/api/plugins)
+- [createApp](/api/create-app)

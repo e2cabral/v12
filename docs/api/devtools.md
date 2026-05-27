@@ -1,56 +1,88 @@
 # DevTools API
 
-O V12 fornece uma interface visual de desenvolvimento (DevTools) que permite monitorar o estado da sua aplicação, visualizar rotas registradas e módulos ativos em tempo real.
+O V12 registra um painel simples de desenvolvimento e um endpoint JSON com informações da aplicação.
 
-## Como habilitar
+## Como funciona
 
-O DevTools é habilitado automaticamente quando a aplicação é iniciada em modo de desenvolvimento (`NODE_ENV !== 'production'`).
+`registerDevTools(app)` é chamado automaticamente dentro de `createApp()`.
 
-Se você estiver usando o `createApp`, ele já registra as rotas necessárias internamente.
+Em produção (`NODE_ENV === 'production'`), ele não registra nada.
 
-## Acessando a Interface
+## Endpoints
 
-Por padrão, o DevTools está disponível no endpoint:
-`GET /_v12/devtools`
+- `GET /_v12/devtools`
+- `GET /_v12/api/info`
 
-## Funcionalidades
+## `GET /_v12/devtools`
 
-### 1. Dashboard em Tempo Real
-Visualização rápida de métricas do sistema:
-- **Uptime**: Tempo de atividade do processo.
-- **Memory Usage**: Uso atual de memória (RSS).
-- **Node Version**: Versão do Node.js em execução.
+Serve uma página HTML com:
 
-### 2. Rotas Registradas
-Lista todas as rotas registradas na aplicação, incluindo o método HTTP e o prefixo, facilitando a depuração de conflitos de rotas.
+- uptime
+- uso de memória
+- versão do Node
+- rotas registradas
+- módulos ativos
 
-### 3. Módulos e Providers
-Visualização da árvore de módulos da aplicação. Para cada módulo, você pode ver:
-- Nome do módulo.
-- Prefixo de rota.
-- Lista de providers registrados no container desse módulo.
+## `GET /_v12/api/info`
 
-### 4. Raw Info API
-Os dados que alimentam a interface também estão disponíveis em formato JSON para integração com outras ferramentas:
-`GET /_v12/api/info`
+Retorna JSON com esta estrutura geral:
 
-## Segurança
+```json
+{
+  "success": true,
+  "data": {
+    "version": "0.1.0",
+    "nodeVersion": "v22.x",
+    "uptime": 123.45,
+    "memory": {},
+    "routes": "string formatada",
+    "modules": []
+  }
+}
+```
 
-O DevTools é **desabilitado automaticamente** em ambientes de produção para evitar exposição de informações sensíveis da arquitetura do sistema.
+## Exemplo de acesso
 
-## Programático
+Depois de subir a app em desenvolvimento:
 
-Se você precisar registrar manualmente (em uma configuração customizada do Fastify), pode usar a função:
+- `http://localhost:3000/_v12/devtools`
+- `http://localhost:3000/_v12/api/info`
+
+## O que entra em `modules`
+
+Cada módulo informado na app contribui com:
+
+- `name`
+- `prefix`
+- `providers`
+
+Esses dados são úteis para conferir se um módulo foi realmente carregado e se os providers esperados estão na composição.
+
+## Registro manual
+
+Embora `createApp()` já cuide disso, a função também pode ser chamada manualmente:
 
 ```ts
-import { registerDevTools } from 'v12';
+import { registerDevTools } from '@eddiecbrl/v12';
 
-// app é uma instância do Fastify/V12
 registerDevTools(app);
 ```
 
+## Quando isso ajuda
+
+- depurar rotas que não apareceram
+- confirmar prefixos finais
+- inspecionar composição de módulos
+- verificar se um ambiente local está rodando a versão certa
+
+## Limites
+
+- o endpoint é voltado a desenvolvimento
+- os dados de rotas vêm em formato textual via `app.printRoutes()`
+- em produção ele é desabilitado pelo guard de `NODE_ENV`
+
 ## Links relacionados
 
-- [Lifecycle Avançado](/advanced/lifecycle)
-- [Dependency Injection](/advanced/dependency-injection)
+- [createApp](/api/create-app)
+- [Arquitetura de Bootstrap](/architecture/bootstrap)
 - [Observabilidade](/guides/observability)

@@ -1,6 +1,6 @@
 # createRouter
 
-`createRouter()` constroi a API declarativa de rotas do `v12` e organiza handlers, middlewares e schemas por feature.
+`createRouter()` cria a definição de rotas de uma feature. Ele organiza paths, handlers, validação, middlewares de rota, WebSocket e políticas de resiliência.
 
 ## Assinatura
 
@@ -8,38 +8,23 @@
 createRouter(prefix?: string)
 ```
 
-## Metodos
+## O que ele retorna
 
-- `get(path, definition)`: Define uma rota GET
-- `post(path, definition)`: Define uma rota POST
-- `put(path, definition)`: Define uma rota PUT
-- `patch(path, definition)`: Define uma rota PATCH
-- `delete(path, definition)`: Define uma rota DELETE
-- `build()`: Gera a `RouterDefinition` final para ser usada no `defineModule()`
+O retorno é um builder com:
 
-## Definição de Rota
+- `get(path, definition)`
+- `post(path, definition)`
+- `put(path, definition)`
+- `patch(path, definition)`
+- `delete(path, definition)`
+- `build()`
 
-Cada método de rota aceita um objeto de definição com:
-
-- `handler`: Função que processa a requisição (`(context: RequestContext) => any`)
-- `schema`: Objeto com validadores Zod para `body`, `params`, `querystring` e `headers`
-- `middlewares`: Lista de `RouteMiddleware` específicos para esta rota
-- `version`: Versão opcional da rota (ex: `'v1'`)
-- `websocket`: Boolean indicando se a rota é um endpoint WebSocket
-
-## RequestContext
-
-O `handler` e os `middlewares` recebem um `RequestContext` contendo:
-
-- `request`: Instância do FastifyRequest (tipada conforme o schema)
-- `reply`: Instância do FastifyReply
-- `container`: Container de DI com escopo de requisição (child container)
-- `t(key, args)`: Helper de tradução (i18n)
-- `connection`: Disponível apenas em rotas `websocket`
-
-## Exemplo minimo
+## Exemplo mínimo
 
 ```ts
+import { createRouter } from '@eddiecbrl/v12';
+import { UsersController } from './users.controller.js';
+
 const router = createRouter();
 
 router.get('/', {
@@ -49,18 +34,86 @@ router.get('/', {
 export const usersRoutes = router.build();
 ```
 
-## Exemplo com validacao e params
+## Atenção: não encadeie os métodos
+
+No estado atual da API, os métodos como `router.get()` e `router.post()` não foram desenhados para chain fluente.
+
+Então prefira isto:
+
+```ts
+const router = createRouter();
+
+router.get('/', { handler });
+router.post('/', { handler });
+
+export const routes = router.build();
+```
+
+e não:
+
+```ts
+// Evite este formato
+createRouter().get('/', { handler }).post('/', { handler });
+```
+
+## Definição de rota
+
+Cada rota aceita:
+
+- `handler`
+- `schema`
+- `middlewares`
+- `version`
+- `websocket`
+- `resilience`
+
+## `handler`
+
+É a função principal da rota.
+
+```ts
+handler: ({ container }) => container.resolve(UsersController).list()
+```
+
+Ela recebe um `RequestContext`.
+
+## `RequestContext`
+
+O contexto contém:
+
+- `request`
+- `reply`
+- `container`
+- `t(key, args)`
+- `connection` em rotas WebSocket
+- `signal` quando timeout/resiliência injeta cancelamento
+
+Exemplo:
+
+```ts
+handler: async ({ request, container, t }) => {
+  const service = container.resolve(UsersService);
+  const result = await service.create(request.body);
+  return {
+    message: t('users.created'),
+    result,
+  };
+}
+```
+
+## `schema`
+
+Aceita validadores Zod para:
+
+- `body`
+- `params`
+- `querystring`
+- `headers`
+
+Exemplo:
 
 ```ts
 import { z } from 'zod';
-import { createRouter } from 'v12';
-import { UsersController } from './users.controller.js';
-
-const getUserSchema = {
-  params: z.object({
-    id: z.string().min(1),
-  }),
-};
 
 const createUserSchema = {
   body: z.object({
@@ -68,33 +121,23 @@ const createUserSchema = {
     email: z.string().email(),
   }),
 };
-
-const router = createRouter();
-
-router.get('/:id', {
-  schema: getUserSchema,
-  handler: (context) => context.container.resolve(UsersController).get(context),
-});
-
-router.post('/', {
-  schema: createUserSchema,
-  handler: (context) => context.container.resolve(UsersController).create(context),
-});
-
-export const usersRoutes = router.build();
 ```
 
-## Prefixo local
-
-Voce pode criar um prefixo dentro do router:
+Uso:
 
 ```ts
-const router = createRouter('/admin');
+router.post('/', {
+  schema: createUserSchema,
+  handler: ({ request, container }) =>
+    container.resolve(UsersController).create({
+      request: { body: request.body as z.infer<typeof createUserSchema.body> },
+    }),
+});
 ```
 
-Se o modulo tambem tiver prefixo, o runtime combina os dois valores.
+## `middlewares`
 
-## Middlewares por rota
+Middlewares executados antes do handler da rota.
 
 ```ts
 router.delete('/:id', {
@@ -105,25 +148,106 @@ router.delete('/:id', {
       }
     },
   ],
-  handler: (context) => context.container.resolve(UsersController).remove(context),
+  handler: ({ container }) => container.resolve(UsersController).remove(),
 });
 ```
 
-## Como a execucao funciona
+## `version`
 
-1. o schema da rota valida `body`, `params`, `querystring` e `headers`
-2. middlewares da rota executam antes do handler
-3. o handler recebe `RequestContext`
-4. o retorno do handler e serializado pelo helper de resposta do framework
+Permite anexar metadados de versão à rota.
 
-## Cuidados
+```ts
+version: 'v1'
+```
 
-- evite duplicar paths no mesmo modulo
-- mantenha o schema consistente com o formato que o handler espera
-- prefira delegar regra de negocio para services em vez de escrever tudo na rota
+## `websocket`
+
+Marca a rota como endpoint WebSocket.
+
+```ts
+router.get('/stream', {
+  websocket: true,
+  handler: async ({ connection }) => {
+    connection.socket.send('connected');
+  },
+});
+```
+
+Para que isso funcione, a aplicação precisa ser criada com:
+
+```ts
+createApp({
+  websocket: true,
+})
+```
+
+## `resilience`
+
+Permite compor retry, circuit breaker, bulkhead, timeout e fallback.
+
+```ts
+router.get('/external-profile/:id', {
+  resilience: {
+    retry: { attempts: 3, delay: 100 },
+    timeout: { ms: 2_000 },
+    fallback: {
+      handler: () => ({ cached: false, unavailable: true }),
+    },
+  },
+  handler: ({ request }) => fetchProfile(String((request.params as any).id)),
+});
+```
+
+## Prefixo local do router
+
+Você pode passar um prefixo ao criar o router:
+
+```ts
+const router = createRouter('/admin');
+```
+
+Se o módulo também tiver prefixo, os valores são combinados.
+
+Exemplo:
+
+```ts
+const router = createRouter('/admin');
+
+router.get('/summary', { handler });
+
+defineModule({
+  name: 'users',
+  prefix: '/api/users',
+  routes: router.build(),
+});
+```
+
+O path final será:
+
+```txt
+/api/users/admin/summary
+```
+
+## Fluxo de execução da rota
+
+1. o framework monta o `RequestContext`
+2. valida `body`, `params`, `querystring` e `headers` quando há `schema`
+3. executa middlewares globais
+4. executa middlewares do módulo
+5. executa middlewares da rota
+6. aplica pipeline de resiliência, se houver
+7. executa o handler e serializa a resposta com o envelope padrão
+
+## Boas práticas
+
+- mantenha o handler curto e delegue regra para services
+- use Zod em tudo que cruza a borda HTTP
+- agrupe schemas da feature no mesmo módulo de domínio
+- use middlewares de rota para checks pontuais e middlewares de módulo para política transversal
 
 ## Links relacionados
 
-- [Request Pipeline](/architecture/request-pipeline)
 - [defineModule](/api/define-module)
-- [Cookbook CRUD](/cookbook/crud)
+- [createApp](/api/create-app)
+- [Validation](/api/validation)
+- [Request Pipeline](/architecture/request-pipeline)

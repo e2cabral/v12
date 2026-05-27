@@ -1,6 +1,6 @@
 # createApp
 
-`createApp()` cria a instancia principal do framework, registra recursos globais e conecta os modulos da aplicacao ao runtime HTTP.
+`createApp()` cria a instância principal do V12. É ele que monta o runtime Fastify, inicializa o container, registra hooks globais, conecta módulos e ativa plugins.
 
 ## Assinatura
 
@@ -10,163 +10,295 @@ createApp(options?: CreateAppOptions): Promise<AppInstance>
 
 ## Quando usar
 
-Use `createApp()` no bootstrap da aplicacao, normalmente em `src/app.ts` ou `src/server.ts`.
+Use `createApp()` no bootstrap da aplicação, normalmente em `src/app.ts`.
 
-## Parametros principais
+Um arranjo comum é:
 
-- `modules`: lista de modulos definidos com `defineModule()`
-- `providers`: providers globais disponiveis para todos os modulos
-- `middlewares`: middlewares executados em todas as rotas
-- `plugins`: plugins do ecossistema V12
-- `fastify`: opcoes repassadas para a instancia Fastify
-- `security`: habilita `cors`, `helmet`, cookie e limites da aplicacao
-    - `cors`: boolean ou `FastifyCorsOptions`
-    - `helmet`: boolean ou `FastifyHelmetOptions`
-    - `cookie`: boolean ou `FastifyCookieOptions`
-    - `bodyLimit`: limite do corpo da requisição em bytes
-    - `requestTimeout`: timeout da conexão em milissegundos
-- `redis`: registra o plugin Redis e injeta o cliente como provider (`Redis`)
-- `upload`: habilita multipart upload via `@fastify/multipart`
-- `websocket`: habilita rotas websocket via `@fastify/websocket`
-- `i18n`: define locale padrao e traducoes (`I18nOptions`)
-- `telemetry`: inicia OpenTelemetry no bootstrap (`TelemetryOptions`)
+- `src/app.ts`: compõe módulos, plugins e opções do runtime
+- `src/server.ts`: chama `buildApp()` e faz `listen()`
 
-## Retorno
-
-`AppInstance`, que estende a instancia Fastify com:
-
-- `container`: Instância do container de DI global
-- `events`: EventBus para comunicação assíncrona
-- `modules`: Lista de módulos registrados
-- `telemetry`: Instância de Telemetry (se habilitado)
-- `use(plugin)`: Método para registrar plugins V12
-
-## Endpoints Automáticos
-
-Ao criar a aplicação, o V12 expõe automaticamente:
-
-- `GET /`: Página de boas-vindas (HTML) ou JSON com metadados
-- `GET /health`: Status de saúde da aplicação (uptime, memória, etc.)
-- `GET /metrics`: Métricas básicas para o Prometheus
-- `GET /docs`: Documentação interativa da API (disponível ao registrar o [pluginOpenApi](/api/swagger))
-- `GET /_v12/devtools`: Painel de ferramentas de desenvolvimento do V12
-
-## Exemplo completo
+## Exemplo mínimo
 
 ```ts
-import { createApp } from 'v12';
+import { createApp } from '@eddiecbrl/v12';
 import { UsersModule } from './features/users/users.module.js';
 
+export const buildApp = () =>
+  createApp({
+    modules: [UsersModule],
+  });
+```
+
+## Exemplo com segurança, plugin e provider global
+
+```ts
+import { createApp, pluginOpenApi } from '@eddiecbrl/v12';
+import { UsersModule } from './features/users/users.module.js';
+
+class Clock {
+  now() {
+    return new Date();
+  }
+}
+
+export const buildApp = () =>
+  createApp({
+    modules: [UsersModule],
+    providers: [
+      { provide: 'Clock', useClass: Clock },
+    ],
+    security: {
+      cors: true,
+      helmet: true,
+      bodyLimit: 1024 * 1024,
+      requestTimeout: 10_000,
+    },
+    plugins: [
+      pluginOpenApi({
+        title: 'Users API',
+        version: '1.0.0',
+      }),
+    ],
+  });
+```
+
+## Exemplo com Redis, upload e WebSocket
+
+```ts
 const app = await createApp({
   modules: [UsersModule],
-  providers: [
-    { provide: 'Config', useValue: { api: 'v1' } }
-  ],
-  security: {
-    cors: true,
-    helmet: true,
-    bodyLimit: 1048576, // 1MB
-  },
   redis: { url: 'redis://localhost:6379' },
   upload: true,
   websocket: true,
-  i18n: {
-    defaultLocale: 'pt-BR',
+});
+```
+
+## Parâmetros
+
+### `modules`
+
+Lista de módulos definidos com `defineModule()`.
+
+```ts
+modules: [UsersModule, BillingModule]
+```
+
+Cada módulo contribui com rotas, providers, middlewares, eventos, jobs e traduções.
+
+### `providers`
+
+Providers globais disponíveis para toda a aplicação.
+
+Aceita:
+
+- classes
+- `{ provide, useClass }`
+- `{ provide, useValue }`
+- `{ provide, useFactory }`
+
+Exemplos:
+
+```ts
+providers: [
+  LoggerService,
+  { provide: 'APP_NAME', useValue: 'My API' },
+  { provide: 'Clock', useClass: Clock },
+  {
+    provide: 'NOW',
+    useFactory: () => () => new Date(),
   },
-  telemetry: {
-    enabled: true,
-    serviceName: 'my-api',
-  }
-});
-
-await app.listen({ port: 3000 });
+]
 ```
 
-## Exemplo minimo
+### `middlewares`
+
+Middlewares globais executados antes dos middlewares de módulo e das rotas.
 
 ```ts
-import { createApp } from 'v12';
-import { UsersModule } from './features/users/users.module.js';
-
-const app = await createApp({
-  modules: [UsersModule],
-});
-
-await app.listen({ port: 3000 });
-```
-
-## Exemplo com seguranca e providers globais
-
-```ts
-import { createApp } from 'v12';
-import { UsersModule } from './features/users/users.module.js';
-import { BillingModule } from './features/billing/billing.module.js';
-import { Clock } from './shared/clock.js';
-
-const app = await createApp({
-  modules: [UsersModule, BillingModule],
-  providers: [
-    { provide: 'Clock', useClass: Clock },
-  ],
-  security: {
-    cors: { origin: true },
-    helmet: true,
-    bodyLimit: 1024 * 1024,
+middlewares: [
+  async ({ request, reply }) => {
+    if (!request.headers['x-api-version']) {
+      reply.code(400).send({
+        success: false,
+        error: {
+          code: 'MISSING_API_VERSION',
+          message: 'x-api-version header is required',
+        },
+      });
+    }
   },
-});
+]
 ```
 
-## Exemplo com middleware global
+### `plugins`
+
+Plugins V12 registrados com `app.use()`. Um dos mais comuns é `pluginOpenApi()`.
 
 ```ts
-const app = await createApp({
-  modules: [UsersModule],
-  middlewares: [
-    async ({ request, reply }) => {
-      if (!request.headers['x-api-version']) {
-        reply.code(400).send({
-          success: false,
-          error: {
-            code: 'MISSING_API_VERSION',
-            message: 'x-api-version header is required',
-          },
-        });
-      }
-    },
-  ],
-});
+plugins: [
+  pluginOpenApi({
+    title: 'My API',
+    version: '1.0.0',
+  }),
+]
 ```
 
-## Como o bootstrap funciona
+### `fastify`
 
-1. cria a instancia Fastify
-2. registra recursos globais como `cors`, `helmet`, `cookie`, `redis`, `multipart` e websocket
-3. monta o container e registra providers globais e dos modulos
-4. adiciona hooks como `x-request-id`, `/health` e `/metrics`
-5. registra plugins e rotas dos modulos
+Opções repassadas para a instância Fastify.
 
-## Notas importantes
+Exemplo:
 
-- o prefixo de rota do modulo e montado a partir de `module.prefix` ou `/${module.name}`
-- providers declarados em `modules` entram automaticamente no container
-- middlewares globais executam antes dos middlewares do modulo e da rota
-- se `telemetry.enabled` for verdadeiro, o runtime inicia e para junto com a app
+```ts
+fastify: {
+  logger: true,
+}
+```
 
-## Performance
+### `security`
 
-O custo principal esta no bootstrap. O objetivo e deixar o request path leve.
+Ativa e configura recursos de segurança.
 
-## Compatibilidade
+Campos disponíveis:
 
-- Node.js `20+`
-- Fastify `5+`
+- `cors`
+- `helmet`
+- `bodyLimit`
+- `requestTimeout`
+- `cookie`
 
-## Migracao
+Exemplo:
 
-Reserve uma camada `buildApp()` para isolar mudancas futuras.
+```ts
+security: {
+  cors: { origin: true },
+  helmet: true,
+  cookie: true,
+  bodyLimit: 1024 * 1024,
+  requestTimeout: 15_000,
+}
+```
+
+### `redis`
+
+Registra `@fastify/redis` e disponibiliza o cliente para recursos que o utilizam.
+
+```ts
+redis: { url: 'redis://localhost:6379' }
+```
+
+Também pode ser `true`, caso em que o framework usa `redis://localhost:6379`.
+
+### `upload`
+
+Ativa `@fastify/multipart`.
+
+```ts
+upload: true
+```
+
+ou com configuração:
+
+```ts
+upload: {
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+}
+```
+
+### `websocket`
+
+Ativa `@fastify/websocket`.
+
+```ts
+websocket: true
+```
+
+### `i18n`
+
+Configura locale padrão e traduções globais.
+
+### `telemetry`
+
+Inicializa OpenTelemetry no bootstrap.
+
+## Retorno
+
+`AppInstance` estende a instância do Fastify com:
+
+- `container`
+- `events`
+- `modules`
+- `telemetry`
+- `use(plugin)`
+
+## O que o framework registra automaticamente
+
+Ao criar a aplicação, o V12 expõe:
+
+- `GET /`
+- `GET /health`
+- `GET /metrics`
+- `GET /_v12/devtools`
+
+Quando `pluginOpenApi()` é usado, também ficam disponíveis:
+
+- `GET /openapi.json`
+- `GET /docs`
+
+## Ordem geral do bootstrap
+
+1. cria a instância Fastify
+2. inicia telemetria, se habilitada
+3. registra recursos de segurança
+4. registra Redis, multipart e WebSocket, se configurados
+5. cria container, EventBus e i18n
+6. instala hooks globais, `x-request-id`, tratamento de erro e devtools
+7. registra plugins
+8. registra eventos e rotas dos módulos
+
+## Como os prefixos funcionam
+
+Para cada rota, o caminho final é composto por:
+
+1. `module.prefix`, se existir; senão `/${module.name}`
+2. `router.prefix`, se existir
+3. `route.path`
+
+Exemplo:
+
+```ts
+defineModule({
+  name: 'users',
+  prefix: '/api/users',
+  routes: createRouter('/admin').build(),
+})
+```
+
+Uma rota `'/summary'` vira:
+
+```txt
+/api/users/admin/summary
+```
+
+## Observações importantes
+
+- providers passados em `modules` são registrados no container automaticamente
+- middlewares globais executam antes dos middlewares de módulo e de rota
+- erros de validação são convertidos para resposta padronizada
+- o framework adiciona e devolve `x-request-id` nos responses
+
+## Dicas de uso
+
+- prefira encapsular `createApp()` em `buildApp()`
+- mantenha `server.ts` fino
+- registre plugins no bootstrap, não em rotas
+- use providers globais para dependências realmente transversais
 
 ## Links relacionados
 
-- [Bootstrap](/architecture/bootstrap)
-- [Quick Start](/introduction/quick-start)
 - [defineModule](/api/define-module)
+- [createRouter](/api/create-router)
+- [Swagger/OpenAPI](/api/swagger)
+- [Bootstrap](/architecture/bootstrap)

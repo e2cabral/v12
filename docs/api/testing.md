@@ -1,66 +1,115 @@
 # Testing API
 
+O V12 oferece `createTestingApp()` para facilitar testes de integração com app real, mas sem subir porta TCP.
 
+## `createTestingApp()`
 
-O V12 facilita a escrita de testes de integração e E2E através do utilitário `createTestingApp`, que permite configurar um ambiente controlado com substituição de dependências.
+É um wrapper sobre `createApp()` com dois comportamentos principais:
 
-## createTestingApp
+- desabilita logs por padrão
+- aceita `overrides` como providers extras
 
-Esta função é um wrapper sobre o `createApp` que desabilita logs por padrão e permite sobrescrever providers.
-
-### Assinatura
+## Assinatura
 
 ```ts
-createTestingApp(options: CreateTestingAppOptions): Promise<AppInstance>
+createTestingApp(options?: CreateTestingAppOptions): Promise<AppInstance>
 ```
 
-### Opções
+## Opções
 
-- `modules`: Módulos a serem carregados no teste.
-- `overrides`: Lista de providers que irão substituir as implementações reais.
-- `...rest`: Aceita todas as outras opções do `createApp`.
+- `modules`
+- `overrides`
+- qualquer outra opção do `createApp`, exceto `modules` e `providers`
 
-## Exemplo de Teste de Integração
-
-Usando `vitest` e a biblioteca `supertest` (ou o método `.inject()` do Fastify):
+## Exemplo básico
 
 ```ts
-import { describe, it, expect } from 'vitest';
-import { createTestingApp } from 'v12';
+import { describe, expect, it } from 'vitest';
+import { createTestingApp } from '@eddiecbrl/v12';
 import { UsersModule } from './users.module.js';
 
 describe('UsersModule', () => {
-  it('should list users', async () => {
+  it('lists users', async () => {
     const app = await createTestingApp({
       modules: [UsersModule],
-      overrides: [
-        { provide: 'Database', useValue: mockDatabase }
-      ]
     });
 
     const response = await app.inject({
       method: 'GET',
-      url: '/users'
+      url: '/users',
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ data: [] });
   });
 });
 ```
 
-## Substituindo Dependências (Overrides)
+## `overrides`
 
-O segredo para testes rápidos e isolados é o uso de `overrides`. Você pode substituir qualquer token registrado no container global por um Mock ou Stub.
+Use para substituir dependências.
 
 ```ts
 const app = await createTestingApp({
-  modules: [MyModule],
+  modules: [UsersModule],
   overrides: [
-    { provide: MailService, useClass: MemoryMailAdapter }
-  ]
+    {
+      provide: 'ClockService',
+      useValue: {
+        now: () => new Date('2026-01-01T00:00:00.000Z'),
+      },
+    },
+  ],
 });
 ```
+
+## Exemplo com service mockado
+
+```ts
+const app = await createTestingApp({
+  modules: [BillingModule],
+  overrides: [
+    {
+      provide: PaymentGateway,
+      useValue: {
+        process: async () => ({ success: true }),
+      },
+    },
+  ],
+});
+```
+
+## Como testar HTTP
+
+Use `app.inject()` do Fastify.
+
+```ts
+const response = await app.inject({
+  method: 'POST',
+  url: '/users',
+  payload: {
+    name: 'Ada',
+    email: 'ada@example.com',
+  },
+});
+```
+
+## Por que isso ajuda
+
+- velocidade
+- não ocupa porta
+- permite testar middleware, validação, DI e resposta HTTP
+- facilita mocks pontuais
+
+## Escopo ideal
+
+Use `createTestingApp()` para:
+
+- testes de integração de módulos
+- testes de rotas
+- testes de autenticação/guards
+- validação de bootstrap parcial
+
+Para unitários puros, costuma ser melhor instanciar a classe diretamente.
 
 ## Links relacionados
 

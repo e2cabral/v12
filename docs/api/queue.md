@@ -1,87 +1,133 @@
 # Queue API
 
-O V12 utiliza o [BullMQ](https://docs.bullmq.io/) para gerenciar filas de processamento em background, oferecendo robustez e alta performance.
+O V12 expõe wrappers simples sobre BullMQ:
 
-## QueueService
+- `QueueService`
+- `WorkerService`
 
-O `QueueService` é usado para adicionar jobs às filas.
+## `QueueService`
+
+Responsável por obter filas e adicionar jobs.
+
+## Exemplo
 
 ```ts
-import { QueueService } from 'v12';
+import { QueueService } from '@eddiecbrl/v12';
 
-class OrderController {
-  constructor(private queue: QueueService) {}
+const queue = new QueueService({ host: 'localhost', port: 6379 });
 
-  async checkout() {
-    // Adiciona um job à fila 'orders'
-    await this.queue.add('orders', 'process-payment', {
-      orderId: '123'
-    });
-  }
-}
+await queue.add('orders', 'process-payment', {
+  orderId: '123',
+});
 ```
 
-### Métodos
+## Métodos
 
-- `get(name, options)`: Retorna uma instância da fila BullMQ.
-- `add(queueName, jobName, data, options)`: Atalho para adicionar um job a uma fila específica.
+### `get(name, options?)`
 
-## WorkerService
-
-O `WorkerService` é usado para registrar processadores (workers) para suas filas.
+Retorna ou cria uma fila pelo nome.
 
 ```ts
-import { WorkerService } from 'v12';
+const ordersQueue = queue.get('orders');
+```
+
+### `add(queueName, jobName, data, options?)`
+
+Atalho para adicionar jobs.
+
+```ts
+await queue.add('emails', 'send-welcome', {
+  email: 'user@example.com',
+});
+```
+
+### `close()`
+
+Fecha todas as filas abertas pelo service.
+
+```ts
+await queue.close();
+```
+
+## `WorkerService`
+
+Responsável por registrar processadores de fila.
+
+## Exemplo
+
+```ts
+import { WorkerService } from '@eddiecbrl/v12';
 
 const workers = new WorkerService({ host: 'localhost', port: 6379 });
 
 workers.register('orders', async (job) => {
   console.log(`Processando pedido ${job.data.orderId}`);
-  // Lógica de processamento...
+  return { ok: true };
 });
 ```
 
-### Métodos
+## Métodos
 
-- `register(queueName, handler, options)`: Registra um novo worker do BullMQ para uma fila.
-- `close()`: Fecha todos os workers registrados.
-
-## Jobs
-
-Os jobs podem ser definidos em módulos para registro automático em sistemas que suportam agendamento.
+### `register(queueName, handler, options?)`
 
 ```ts
-export const BillingModule = defineModule({
-  name: 'billing',
-  jobs: [
-    {
-      name: 'daily-report',
-      cron: '0 0 * * *',
-      handler: async () => { /* ... */ }
-    }
-  ]
+workers.register('emails', async (job) => {
+  console.log(job.name, job.data);
 });
 ```
 
-## Configuração
-
-O `QueueService` requer uma configuração do Redis para funcionar.
+### `close()`
 
 ```ts
-import { createApp, QueueService } from 'v12';
+await workers.close();
+```
+
+## Exemplo de composição
+
+```ts
+class CheckoutService {
+  static inject = [QueueService] as const;
+
+  constructor(private readonly queue: QueueService) {}
+
+  async checkout(orderId: string) {
+    await this.queue.add('orders', 'process-payment', { orderId });
+  }
+}
+```
+
+Worker correspondente:
+
+```ts
+workers.register('orders', async (job) => {
+  if (job.name === 'process-payment') {
+    console.log(job.data.orderId);
+  }
+});
+```
+
+## Observações práticas
+
+- a conexão Redis é passada no construtor
+- `QueueService` e `WorkerService` não são registrados automaticamente pelo framework
+- você normalmente cria e registra esses serviços como providers no bootstrap
+
+## Exemplo com provider
+
+```ts
+const redisConnection = { host: 'localhost', port: 6379 };
 
 const app = await createApp({
   providers: [
     {
       provide: QueueService,
-      useValue: new QueueService({ host: 'localhost', port: 6379 })
-    }
-  ]
+      useValue: new QueueService(redisConnection),
+    },
+  ],
 });
 ```
 
 ## Links relacionados
 
+- [Jobs API](/api/jobs)
 - [createApp](/api/create-app)
-- [defineModule](/api/define-module)
-- [Redis](/api/create-app#redis)

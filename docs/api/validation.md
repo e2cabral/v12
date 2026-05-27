@@ -1,47 +1,89 @@
 # Validation API
 
-O V12 utiliza o [Zod](https://zod.dev/) como motor de validação padrão, permitindo definir schemas robustos para entradas e saídas de dados com tipagem estática garantida.
+O V12 usa Zod para validação de entrada nas rotas e expõe um helper reutilizável para validação manual.
 
-## Route Schema
+## Onde a validação entra
 
-Ao definir uma rota, você pode passar um objeto `schema` que contém as regras para diferentes partes da requisição.
+As rotas podem declarar `schema` com:
+
+- `body`
+- `params`
+- `querystring`
+- `headers`
+- `response`
+
+## Exemplo de rota
 
 ```ts
 import { z } from 'zod';
 
-router.post('/users', {
+router.post('/users/:id', {
   schema: {
     body: z.object({
       name: z.string().min(3),
       email: z.string().email(),
     }),
     querystring: z.object({
-      sendEmail: z.boolean().optional(),
+      sendEmail: z.coerce.boolean().optional(),
     }),
     params: z.object({
-      id: z.string().uuid(),
+      id: z.string().min(1),
     }),
     headers: z.object({
       'x-api-key': z.string(),
     }),
   },
   handler: async ({ request }) => {
-    // request.body, request.query, etc. já estão validados e tipados aqui
-  }
+    return {
+      body: request.body,
+      params: request.params,
+      query: request.query,
+    };
+  },
 });
 ```
 
-## Propriedades do Schema
+## O que acontece no runtime
 
--   **body**: Valida o corpo da requisição (JSON).
--   **querystring**: Valida os parâmetros de busca na URL (`?key=value`).
--   **params**: Valida os parâmetros de rota (`/users/:id`).
--   **headers**: Valida os cabeçalhos HTTP.
--   **response**: (Opcional) Valida e filtra o formato da resposta enviada ao cliente.
+Na execução atual do router:
 
-## Tratamento de Erros
+1. valida `body`
+2. valida `params`
+3. valida `querystring`
+4. valida `headers`
+5. executa middlewares da rota
+6. executa handler
 
-Se a validação falhar, o V12 interrompe a execução automaticamente e retorna um erro `400 Bad Request` com um corpo estruturado contendo os detalhes do erro (campos inválidos e mensagens).
+O helper usado internamente é `validateSchema()`.
+
+## `validateSchema(schema, value)`
+
+Valida um valor com Zod e converte erro para `ValidationError`.
+
+```ts
+import { validateSchema } from '@eddiecbrl/v12';
+import { z } from 'zod';
+
+const userSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+});
+
+const data = validateSchema(userSchema, {
+  name: 'Ada',
+  email: 'ada@example.com',
+});
+```
+
+## Erro retornado
+
+Quando a validação falha, o framework responde com `400` e um erro com:
+
+- `code: 'VALIDATION_ERROR'`
+- `message: 'Validation failed'`
+- `details` com `error.flatten()`
+
+Formato típico:
 
 ```json
 {
@@ -58,24 +100,52 @@ Se a validação falhar, o V12 interrompe a execução automaticamente e retorna
 }
 ```
 
-## Validação Manual
+## Tipagem prática
 
-Você também pode utilizar o utilitário `validateSchema` ou o próprio Zod diretamente em seus services se precisar de validação em outros pontos da aplicação.
+Uma abordagem boa é inferir tipos a partir do Zod:
 
 ```ts
-import { validateSchema } from 'v12';
+const createUserSchema = {
+  body: z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+  }),
+};
 
-const data = validateSchema(MyZodSchema, rawInput);
+type CreateUserInput = z.infer<typeof createUserSchema.body>;
 ```
 
-## Boas Práticas
+Depois:
 
--   **Reutilize Schemas**: Defina seus schemas em arquivos separados (`.schema.ts`) para que possam ser usados tanto no roteador quanto em testes ou no frontend (se estiver usando TypeScript no front).
--   **Partial Schemas**: Use `.partial()` do Zod para criar schemas de atualização (PATCH) baseados em schemas de criação (POST).
--   **Coerção**: Use `z.coerce.number()` ou `z.coerce.boolean()` para parâmetros que vêm como string mas devem ser tratados como outros tipos (comum em query params).
+```ts
+class UsersController {
+  create = async ({ request }: { request: { body: CreateUserInput } }) => {
+    return request.body;
+  };
+}
+```
+
+## Sobre `response`
+
+O tipo `RouteSchema` inclui `response`, mas a execução atual do router valida apenas:
+
+- `body`
+- `params`
+- `querystring`
+- `headers`
+
+Então `response` hoje funciona mais como metadado compartilhável do que como validação ativa no runtime.
+
+## Boas práticas
+
+- mantenha schemas perto da feature
+- use `z.coerce.*` em query params e headers quando necessário
+- reutilize schemas entre rota, testes e documentação
+- derive tipos com `z.infer`
+- use `.partial()` para updates
 
 ## Links relacionados
 
-- [Zod Documentation](https://zod.dev/)
-- [Errors API](/api/errors)
-- [createRouter API](/api/create-router)
+- [createRouter](/api/create-router)
+- [Swagger/OpenAPI](/api/swagger)
+- [Errors](/api/errors)

@@ -1,54 +1,95 @@
 # Logger API
 
-O V12 utiliza o [Pino](https://getpino.io/) como logger padrão, fornecendo logs estruturados e de alta performance.
+O V12 usa Pino como base de logging.
 
-## Uso Básico
+## O que o projeto expõe
 
-O logger está disponível no container global e pode ser injetado em qualquer service. Por padrão, ele usa o token `'Logger'`.
+- `getLoggerOptions(options?)`
+- `createLogger(options?)`
+
+Além disso, no bootstrap da app o logger fica disponível no container com o token:
+
+```txt
+'Logger'
+```
+
+## `getLoggerOptions()`
+
+Monta opções de logger com defaults do framework.
 
 ```ts
-import { Logger } from 'v12';
+import { getLoggerOptions } from '@eddiecbrl/v12';
 
-export class UsersService {
-  constructor(private logger: Logger) {}
+const options = getLoggerOptions();
+```
+
+Defaults atuais:
+
+- `level = process.env.LOG_LEVEL ?? 'info'`
+- redaction de:
+  - `req.headers.authorization`
+  - `password`
+  - `token`
+
+## `createLogger()`
+
+Cria uma instância Pino já com os defaults do framework.
+
+```ts
+import { createLogger } from '@eddiecbrl/v12';
+
+const logger = createLogger();
+
+logger.info({ service: 'billing' }, 'service started');
+```
+
+## Uso no runtime
+
+`createApp()` monta o Fastify com logger do framework e registra esse mesmo logger no container:
+
+```ts
+container.resolve('Logger')
+```
+
+## Exemplo em service
+
+```ts
+class UsersService {
+  static inject = ['Logger'] as const;
+
+  constructor(private readonly logger: any) {}
 
   async create(data: any) {
-    this.logger.info({ userId: data.id }, 'Criando novo usuário');
-    
+    this.logger.info({ email: data.email }, 'creating user');
+
     try {
-      // ... lógica
+      return { ok: true };
     } catch (error) {
-      this.logger.error({ error, data }, 'Erro ao criar usuário');
+      this.logger.error({ err: error }, 'failed to create user');
       throw error;
     }
   }
 }
 ```
 
-## Níveis de Log
+## Logs automáticos da app
 
-Os níveis padrão do Pino são suportados:
+O runtime já registra logs por request com:
 
-- `trace`
-- `debug`
-- `info`
-- `warn`
-- `error`
-- `fatal`
+- método
+- URL
+- status code
+- duração
+- `x-request-id`
 
-## Logs de Requisição
+## Boas práticas
 
-O V12 registra automaticamente logs de entrada e saída para todas as requisições HTTP, incluindo o tempo de resposta e o ID da requisição (`x-request-id`).
+- prefira logs estruturados
+- não logue segredos
+- use contexto útil como `userId`, `orderId`, `tenantId`
+- mantenha mensagens curtas e legíveis
 
-## Configuração
+## Links relacionados
 
-Você pode configurar o logger através de variáveis de ambiente:
-
-- `LOG_LEVEL`: Define o nível mínimo de log (padrão: `info`).
-- `NODE_ENV`: Se definido como `development`, o log será formatado com `pino-pretty` para melhor legibilidade no terminal.
-
-## Boas Práticas
-
-- **Use logs estruturados**: Sempre passe um objeto como primeiro argumento para incluir metadados pesquisáveis (ex: `userId`, `orderId`).
-- **Não logue dados sensíveis**: Evite logar senhas, tokens, números de cartão de crédito ou documentos pessoais.
-- **Contexto é tudo**: Inclua informações suficientes para que seja possível rastrear um erro sem precisar reproduzi-lo localmente.
+- [Observabilidade](/guides/observability)
+- [createApp](/api/create-app)

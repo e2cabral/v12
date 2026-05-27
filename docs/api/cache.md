@@ -1,76 +1,183 @@
 # Cache API
 
-O V12 fornece um serviço de cache unificado com suporte a diferentes drivers, permitindo armazenar e recuperar dados rapidamente.
+O V12 oferece um `CacheService` pequeno e adaptável, com suporte a memória e Redis.
 
-## CacheService
+## Peças disponíveis
 
-O `CacheService` expõe métodos para gerenciar o cache.
+- `CacheService`
+- `MemoryCacheAdapter`
+- `RedisCacheAdapter`
 
-### get
+## `CacheService`
 
-Busca um item do cache. Retorna `null` se não encontrado.
+O serviço expõe:
+
+- `get(key)`
+- `set(key, value, ttlSeconds?)`
+- `delete(key)`
+- `clear()`
+- `remember(key, ttlSeconds, factory)`
+
+## Exemplo básico
 
 ```ts
-const user = await cache.get<User>('user:123');
+import { CacheService, MemoryCacheAdapter } from '@eddiecbrl/v12';
+
+const cache = new CacheService(new MemoryCacheAdapter());
+
+await cache.set('user:123', { id: '123', name: 'Ada' }, 3600);
+const user = await cache.get<{ id: string; name: string }>('user:123');
 ```
 
-### set
+## `get()`
 
-Armazena um item no cache.
+Retorna valor ou `null`.
 
 ```ts
-await cache.set('user:123', userData, 3600); // 1 hora de TTL
+const user = await cache.get('user:123');
 ```
 
-### delete
+## `set()`
 
-Remove um item do cache.
+Armazena um valor com TTL opcional em segundos.
+
+```ts
+await cache.set('user:123', userData, 3600);
+```
+
+## `delete()`
 
 ```ts
 await cache.delete('user:123');
 ```
 
-### clear
-
-Limpa todo o cache (use com cautela).
+## `clear()`
 
 ```ts
 await cache.clear();
 ```
 
-### remember
+## `remember()`
 
-Tenta buscar do cache. Se não encontrar, executa a factory, salva o resultado no cache e o retorna. É o padrão mais comum de cache lateral.
+Esse é o padrão mais útil no dia a dia.
 
 ```ts
-const user = await cache.remember('user:123', 3600, async () => {
-  return repository.findById('123');
+const profile = await cache.remember('user:123', 300, async () => {
+  return usersRepository.findById('123');
 });
 ```
 
-## Adaptadores
+Fluxo:
 
-O V12 suporta:
+1. tenta ler do cache
+2. se encontrar, retorna
+3. se não encontrar, executa a factory
+4. salva o resultado
+5. retorna o resultado
 
-- `MemoryCacheAdapter`: Armazenamento em memória (volátil, ideal para testes ou caches muito pequenos).
-- `RedisCacheAdapter`: Armazenamento no Redis (persistente e compartilhado).
+## `MemoryCacheAdapter`
 
-## Configuração
+Armazena tudo em memória do processo.
 
-Você pode registrar o `CacheService` no `createApp` ou em um módulo:
+Bom para:
+
+- testes
+- desenvolvimento
+- cache local pequeno
+
+Limites:
+
+- não é compartilhado entre instâncias
+- é perdido quando o processo reinicia
+
+## Exemplo
 
 ```ts
-import { createApp, CacheService, RedisCacheAdapter } from 'v12';
+import { CacheService, MemoryCacheAdapter } from '@eddiecbrl/v12';
 
+const cache = new CacheService(new MemoryCacheAdapter());
+```
+
+## `RedisCacheAdapter`
+
+Usa Redis como backend.
+
+Bom para:
+
+- produção
+- múltiplas instâncias
+- cache compartilhado
+
+## Exemplo
+
+```ts
+import { CacheService, RedisCacheAdapter } from '@eddiecbrl/v12';
+
+const redis = container.resolve('Redis');
+const cache = new CacheService(new RedisCacheAdapter(redis));
+```
+
+O adapter serializa objetos com `JSON.stringify` e tenta `JSON.parse` no `get()`.
+
+## Registrando no container
+
+### Com Redis da própria app
+
+```ts
 const app = await createApp({
+  redis: { url: 'redis://localhost:6379' },
   providers: [
     {
       provide: CacheService,
       useFactory: (container) => {
         const redis = container.resolve('Redis');
         return new CacheService(new RedisCacheAdapter(redis));
-      }
-    }
-  ]
+      },
+    },
+  ],
 });
 ```
+
+### Com cache em memória
+
+```ts
+const app = await createApp({
+  providers: [
+    {
+      provide: CacheService,
+      useValue: new CacheService(new MemoryCacheAdapter()),
+    },
+  ],
+});
+```
+
+## Exemplo em service
+
+```ts
+class UsersService {
+  static inject = [UsersRepository, CacheService] as const;
+
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly cache: CacheService,
+  ) {}
+
+  async findById(id: string) {
+    return this.cache.remember(`users:${id}`, 300, async () => {
+      return this.usersRepository.findById(id);
+    });
+  }
+}
+```
+
+## Boas práticas
+
+- use chaves previsíveis e namespaced
+- prefira `remember()` para leitura com cache lateral
+- use memória para local/dev e Redis para produção
+- escolha TTL coerente com a volatilidade do dado
+
+## Links relacionados
+
+- [createApp](/api/create-app)
+- [Resiliência](/api/resilience)

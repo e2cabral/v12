@@ -1,37 +1,41 @@
 # API Reference
 
-Bem-vindo à referência técnica completa do V12. Aqui você encontrará detalhes sobre todas as primitivas, serviços e utilitários que compõem o framework.
+Esta seção reúne a referência técnica do V12.
 
-## Núcleo (Core)
-- [createApp](/api/create-app): O ponto de entrada da sua aplicação.
-- [defineModule](/api/define-module): Como estruturar suas features.
-- [createRouter](/api/create-router): Definição de rotas, middlewares e validação.
-- [Config](/api/config): Gerenciamento de ambiente e variáveis.
-- [Errors](/api/errors): Hierarquia de exceções e tratamento global.
+## Núcleo
 
-## Serviços Integrados
-- [Auth](/api/auth): JWT, API Keys e OAuth.
-- [Database](/api/database): Repositórios e integração com ORMs.
-- [Cache](/api/cache): Gerenciamento de estado temporário com Redis ou Local.
-- [Queue](/api/queue): Processamento em background e workers.
-- [Mail](/api/mail): Envio de e-mails com suporte a templates.
-- [Storage](/api/storage): Manipulação de arquivos (Local/S3).
-- [Audit](/api/audit): Registro de ações para conformidade.
-- [Multi-tenancy](/api/multi-tenancy): Isolamento de dados entre clientes.
-- [Security](/api/security): Guards, permissões e rate limiting.
-- [DevTools](/api/devtools): Interface visual para monitoramento em desenvolvimento.
+- [createApp](/api/create-app)
+- [defineModule](/api/define-module)
+- [createRouter](/api/create-router)
+- [Config](/api/config)
+- [Errors](/api/errors)
 
-## Comunicação e Observabilidade
-- [Events](/api/events): Event Bus para comunicação desacoplada.
-- [Jobs](/api/jobs): Definição de tarefas agendadas.
-- [Logger](/api/logger): Logs estruturados de alta performance.
-- [Telemetry](/api/telemetry): Tracing e métricas com OpenTelemetry.
-- [i18n](/api/i18n): Internacionalização nativa.
+## Capacidades integradas
 
-## Ferramentas e DX
-- [CLI](/api/cli): Comandos para geração de código e produtividade.
-- [Validation](/api/validation): Schemas Zod integrados.
-- [Swagger](/api/swagger): Geração automática de OpenAPI e interface Scalar.
-- [Testing](/api/testing): Utilitários para testes unitários e de integração.
-- [Plugins](/api/plugins): Sistema de extensibilidade do framework.
-- [SDK](/api/sdk): Geração automática de clientes para o frontend.
+- [Auth](/api/auth)
+- [Database](/api/database)
+- [Cache](/api/cache)
+- [Queue](/api/queue)
+- [Mail](/api/mail)
+- [Storage](/api/storage)
+- [Audit](/api/audit)
+- [Multi-tenancy](/api/multi-tenancy)
+- [Security](/api/security)
+- [DevTools](/api/devtools)
+
+## Comunicação e observabilidade
+
+- [Events](/api/events)
+- [Jobs](/api/jobs)
+- [Logger](/api/logger)
+- [Telemetry](/api/telemetry)
+- [i18n](/api/i18n)
+
+## Ferramentas
+
+- [CLI](/api/cli)
+- [Validation](/api/validation)
+- [Swagger/OpenAPI](/api/swagger)
+- [Testing](/api/testing)
+- [Plugins](/api/plugins)
+- [SDK](/api/sdk)

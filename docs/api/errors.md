@@ -1,59 +1,67 @@
 # Errors
 
+O V12 define uma hierarquia simples de erros de aplicação. Quando um desses erros é lançado em handler ou middleware, o framework converte isso em resposta HTTP padronizada.
 
+## `AppError`
 
-O V12 define uma hierarquia de exceções padronizada. Quando uma dessas exceções é lançada dentro de um handler ou middleware, o framework a captura automaticamente e retorna uma resposta JSON formatada com o status code e o código de erro correspondentes.
+Classe base.
 
-## AppError
+Campos:
 
-Classe base para todos os erros da aplicação.
+- `message`
+- `statusCode`
+- `code`
+- `details`
 
-- `message`: Descrição do erro para humanos.
-- `statusCode`: Status HTTP (ex: 400, 404, 500).
-- `code`: Identificador estável do erro (ex: `INTERNAL_SERVER_ERROR`).
-- `details`: Objeto opcional com dados extras sobre o erro.
+## Especializações disponíveis
 
-## Classes Especializadas
+- `ValidationError`
+- `UnauthorizedError`
+- `ForbiddenError`
+- `NotFoundError`
+- `ConflictError`
 
-O V12 exporta classes para os cenários mais comuns:
+## Exemplo
 
-- `ValidationError(message, details)`: Retorna 400 (Bad Request).
-- `UnauthorizedError(message)`: Retorna 401 (Unauthorized).
-- `ForbiddenError(message)`: Retorna 403 (Forbidden).
-- `NotFoundError(message, code)`: Retorna 404 (Not Found).
-- `ConflictError(message, code)`: Retorna 409 (Conflict).
+```ts
+import { NotFoundError } from '@eddiecbrl/v12';
 
-## Formato da Resposta
+class UsersService {
+  async findById(id: string) {
+    const user = await db.user.findUnique({ where: { id } });
 
-Todas as exceções capturadas pelo V12 seguem este formato de resposta:
+    if (!user) {
+      throw new NotFoundError('Usuário não encontrado', 'USER_NOT_FOUND');
+    }
+
+    return user;
+  }
+}
+```
+
+## Formato da resposta
 
 ```json
 {
   "success": false,
   "error": {
-    "code": "NOT_FOUND",
+    "code": "USER_NOT_FOUND",
     "message": "Usuário não encontrado",
     "details": null
   }
 }
 ```
 
-## Exemplo de Uso
+## Erros desconhecidos
 
-```ts
-import { NotFoundError } from 'v12';
+Se o erro não herdar de `AppError`, o framework:
 
-class UsersService {
-  async findById(id: string) {
-    const user = await db.user.findUnique({ where: { id } });
-    if (!user) {
-      throw new NotFoundError('Usuário não encontrado', 'USER_NOT_FOUND');
-    }
-    return user;
-  }
-}
-```
+- registra no logger
+- responde com erro interno genérico
 
-## Tratamento de Erros Desconhecidos
+Isso evita vazamento acidental de detalhes sensíveis.
 
-Erros que não herdam de `AppError` são capturados, logados como erro crítico e retornam um status 500 genérico para evitar vazamento de informações sensíveis.
+## Links relacionados
+
+- [Validation](/api/validation)
+- [createApp](/api/create-app)

@@ -1,107 +1,285 @@
 # Database API
 
-O V12 abstrai o acesso ao banco de dados através de adaptadores e do padrão Repository, fornecendo funcionalidades prontas como paginação, filtros avançados, auditoria e multi-tenancy.
+O V12 organiza persistência em torno de dois blocos:
 
-## Adaptadores
+- adapters, que encapsulam o cliente do ORM
+- repositories, que expõem operações de domínio e utilidades comuns
 
-Os adaptadores permitem que o V12 se comunique com diferentes ORMs.
+## O que existe hoje
 
-- `PrismaAdapter`: Suporte para Prisma ORM.
-- `DrizzleAdapter`: Suporte para Drizzle ORM.
-- `TypeORMAdapter`: Suporte para TypeORM.
-- `MongooseAdapter`: Suporte para Mongoose (MongoDB).
+Adapters:
+
+- `PrismaAdapter`
+- `DrizzleAdapter`
+- `TypeOrmAdapter`
+- `MongooseAdapter`
+
+Bases de repositório:
+
+- `Repository`
+- `PrismaRepository`
+- `DrizzleRepository`
+- `TypeOrmRepository`
+- `MongooseRepository`
+
+## `DatabaseAdapter`
+
+O contrato base é:
 
 ```ts
-import { PrismaClient } from '@prisma/client';
-import { PrismaAdapter } from 'v12';
-
-const prisma = new PrismaClient();
-const db = new PrismaAdapter(prisma);
+interface DatabaseAdapter {
+  name: string;
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  transaction?<T>(fn: (tx: any) => Promise<T>): Promise<T>;
+}
 ```
 
-## Repositories
+## `Repository`
 
-O V12 fornece classes base para criar repositórios com facilidade.
+A classe base `Repository<T, CreateDTO, UpdateDTO>` oferece:
 
-### BaseRepository / Repository
+- `getPagination()`
+- `createPaginatedResult()`
+- hooks `before*` e `after*`
+- suporte a `tenantId`
+- suporte a `auditService`
 
-A classe abstrata `Repository` define os métodos padrão de CRUD:
-
-- `findAll()`: Retorna todos os registros.
-- `find(options)`: Busca registros com filtros, ordenação e paginação.
-- `findPaginated(options)`: Busca registros retornando metadados de paginação.
-- `findById(id)`: Busca um registro pelo ID.
-- `create(data)`: Cria um novo registro.
-- `update(id, data)`: Atualiza um registro existente.
-- `delete(id)`: Remove um registro.
-
-### PrismaRepository
-
-Implementação base para repositórios usando Prisma.
+### Interface principal
 
 ```ts
-import { PrismaRepository } from 'v12';
+findAll(): Promise<T[]>
+find(options?: QueryOptions): Promise<T[]>
+findPaginated(options?: QueryOptions): Promise<PaginatedResult<T>>
+findById(id: string): Promise<T | null>
+create(data: CreateDTO): Promise<T>
+update(id: string, data: UpdateDTO): Promise<T>
+delete(id: string): Promise<boolean>
+```
+
+## Query options
+
+Os métodos `find()` e `findPaginated()` usam:
+
+```ts
+type QueryOptions = {
+  where?: Filters;
+  sort?: SortOptions | SortOptions[];
+  page?: number;
+  limit?: number;
+}
+```
+
+### Filtros suportados
+
+- `$eq`
+- `$ne`
+- `$gt`
+- `$gte`
+- `$lt`
+- `$lte`
+- `$like`
+- `$in`
+
+### Exemplo
+
+```ts
+const users = await repository.find({
+  where: {
+    age: { $gte: 18 },
+    name: { $like: 'Ada%' },
+  },
+  sort: { field: 'createdAt', order: 'desc' },
+  page: 1,
+  limit: 20,
+});
+```
+
+## `PrismaAdapter`
+
+Encapsula um client compatível com Prisma.
+
+```ts
+import { PrismaAdapter } from '@eddiecbrl/v12';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+const adapter = new PrismaAdapter(prisma);
+
+await adapter.connect();
+await adapter.disconnect();
+```
+
+## `PrismaRepository`
+
+É a implementação mais completa pronta no código atual.
+
+```ts
+import { PrismaRepository } from '@eddiecbrl/v12';
+import { PrismaClient, User } from '@prisma/client';
 
 export class UsersRepository extends PrismaRepository<User> {
   constructor(prisma: PrismaClient) {
     super(prisma.user, 'users');
   }
+
+  async findByEmail(email: string) {
+    return this.model.findUnique({ where: { email } });
+  }
 }
 ```
 
-## Query Options
+### O que ele entrega
 
-Os métodos `find` e `findPaginated` aceitam um objeto `QueryOptions`:
+- CRUD básico
+- paginação
+- mapeamento de filtros
+- mapeamento de sort
+- hooks de ciclo de vida
+- suporte a `tenantId`
+- integração com auditoria via `afterCreate`, `afterUpdate`, `afterDelete`
 
-- `where`: Filtros (`Filters`).
-- `sort`: Ordenação (`SortOptions`).
-- `page`: Número da página (padrão: 1).
-- `limit`: Itens por página (padrão: 10).
+## Exemplo com module provider
 
-### Filtros Avançados
-
-O V12 suporta operadores nos filtros:
-
-- `$eq`: Igual a
-- `$ne`: Diferente de
-- `$gt`: Maior que
-- `$gte`: Maior ou igual a
-- `$lt`: Menor que
-- `$lte`: Menor ou igual a
-- `$in`: Presente na lista
-- `$like`: Busca parcial (ex: `%termo%`)
-
-Exemplo de query:
 ```ts
-const users = await repository.find({
-  where: {
-    age: { $gte: 18 },
-    name: { $like: 'João%' }
-  },
-  sort: { field: 'createdAt', order: 'desc' },
-  page: 1,
-  limit: 20
+import { defineModule } from '@eddiecbrl/v12';
+
+export const UsersModule = defineModule({
+  name: 'users',
+  providers: [
+    {
+      provide: UsersRepository,
+      useFactory: (container) => {
+        const prisma = container.resolve('PrismaClient');
+        return new UsersRepository(prisma);
+      },
+    },
+    UsersService,
+  ],
 });
 ```
 
-## Recursos Embutidos
+## `TypeOrmAdapter` e `TypeOrmRepository`
 
-### Multi-tenancy
+O adapter encapsula o `DataSource` e o repository base implementa CRUD com:
 
-Ao estender `Repository`, você pode passar um `tenantId` nas opções. O framework aplicará automaticamente o filtro de `tenantId` em todas as consultas e inserções.
+- `repository.find`
+- `findAndCount`
+- `create/save`
+- `update`
+- `delete`
 
-### Auditoria
+Também converte filtros para operadores TypeORM quando disponíveis.
 
-Se um `AuditService` for fornecido ao repositório, ele registrará automaticamente ações de `CREATE`, `UPDATE` e `DELETE`.
+## Exemplo curto
 
-### Hooks (Lifecycle)
+```ts
+import { TypeOrmRepository } from '@eddiecbrl/v12';
 
-Você pode sobrescrever métodos de ciclo de vida no seu repositório:
-- `beforeCreate`, `afterCreate`
-- `beforeUpdate`, `afterUpdate`
-- `beforeDelete`, `afterDelete`
+export class UsersRepository extends TypeOrmRepository<any> {
+  constructor(repository: any) {
+    super(repository, 'users');
+  }
+}
+```
+
+## `MongooseAdapter` e `MongooseRepository`
+
+O adapter gerencia sessão/transação e o repository base implementa CRUD usando `lean()`.
+
+### Comportamento útil
+
+- `findAll`, `find` e `findPaginated` usam `lean`
+- `findById` busca por `_id`
+- `$like` vira `RegExp`
+- `sort` mapeia para `1` e `-1`
+
+## `DrizzleAdapter` e `DrizzleRepository`
+
+O adapter existe e suporta `transaction()`, mas o `DrizzleRepository` é abstrato e espera que você implemente as operações segundo o dialeto/driver usado.
+
+Em outras palavras: ele serve mais como base estrutural do que como repository pronto.
+
+## Paginação
+
+O helper base calcula:
+
+```ts
+page
+limit
+skip
+```
+
+e `findPaginated()` retorna:
+
+```ts
+{
+  data: T[],
+  meta: {
+    total: number,
+    page: number,
+    lastPage: number,
+    limit: number,
+  }
+}
+```
+
+## Hooks de ciclo de vida
+
+Você pode sobrescrever:
+
+- `beforeCreate`
+- `afterCreate`
+- `beforeUpdate`
+- `afterUpdate`
+- `beforeDelete`
+- `afterDelete`
+
+## Exemplo
+
+```ts
+class UsersRepository extends PrismaRepository<any> {
+  constructor(model: any) {
+    super(model, 'users');
+  }
+
+  protected async beforeCreate(data: any) {
+    return {
+      ...data,
+      normalizedEmail: String(data.email).toLowerCase(),
+    };
+  }
+}
+```
+
+## Multi-tenancy
+
+Se `tenantId` for passado ao repository base, o framework:
+
+- injeta `tenantId` automaticamente em `beforeCreate`
+- aplica filtro de tenant nas consultas via `applyTenantFilter()`
+
+Exemplo:
+
+```ts
+const repo = new UsersRepository(prisma.user, 'users', {
+  tenantId: 'tenant-a',
+});
+```
+
+## Auditoria
+
+Se `auditService` for passado, os hooks `afterCreate`, `afterUpdate` e `afterDelete` registram eventos de auditoria automaticamente.
+
+## Boas práticas
+
+- deixe o service depender do repository, não do ORM direto
+- use repositories para encapsular queries específicas do domínio
+- use hooks para transformação leve e auditoria, não para regra de negócio inteira
+- mantenha `tenantId` e `auditService` perto da borda de composição
 
 ## Links relacionados
 
 - [Guia de Banco de Dados](/guides/database)
+- [Services](/concepts/services)
 - [createApp](/api/create-app)

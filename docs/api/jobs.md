@@ -1,66 +1,90 @@
 # Jobs API
 
-O V12 oferece um sistema simples para definição e execução de jobs em background, integrado ao sistema de filas (Queue) quando necessário.
+O V12 expõe um tipo simples de job através de `defineJob()`. Hoje ele funciona principalmente como definição estruturada e tipada de trabalho assíncrono.
 
-## Definindo um Job
+## `defineJob()`
 
-Use a função `defineJob` para criar uma definição de job tipada.
+Assinatura conceitual:
 
 ```ts
-import { defineJob } from 'v12';
+defineJob<TPayload>(job: JobDefinition<TPayload>)
+```
+
+## `JobDefinition`
+
+```ts
+type JobDefinition<TPayload = void> = {
+  name: string;
+  timeoutMs?: number;
+  retries?: number;
+  handler: (payload: TPayload) => Promise<void> | void;
+}
+```
+
+## Exemplo
+
+```ts
+import { defineJob } from '@eddiecbrl/v12';
 
 export const SendWelcomeEmailJob = defineJob<{ email: string; name: string }>({
   name: 'send-welcome-email',
+  timeoutMs: 5000,
   retries: 3,
   handler: async (payload) => {
-    // Lógica para enviar o e-mail
     console.log(`Enviando e-mail para ${payload.email}`);
-  }
+  },
 });
 ```
 
-## Registrando Jobs em Módulos
+## Registro em módulo
 
-Para que o V12 reconheça seus jobs, você deve registrá-los na definição do módulo.
+`defineModule()` aceita `jobs`.
 
 ```ts
-import { defineModule } from 'v12';
-import { SendWelcomeEmailJob } from './jobs/send-welcome-email.job.js';
+import { defineModule } from '@eddiecbrl/v12';
 
 export const UsersModule = defineModule({
   name: 'users',
   jobs: [SendWelcomeEmailJob],
-  // ...
 });
 ```
 
-## Executando um Job via Fila
+## O que isso significa hoje
 
-Para processar jobs de forma assíncrona usando Redis, utilize o `QueueService`.
+É importante distinguir intenção de execução automática:
+
+- o tipo `jobs` existe na definição de módulo
+- `defineJob()` existe e tipa bem os jobs
+- o runtime atual de `createApp()` não executa nem agenda esses jobs automaticamente
+
+Então, hoje, jobs funcionam mais como contrato e organização do que como scheduler embutido.
+
+## Ligando com filas
+
+Se você quer execução assíncrona real, o caminho atual é usar `QueueService`.
 
 ```ts
-import { QueueService } from 'v12';
-import { SendWelcomeEmailJob } from './jobs/send-welcome-email.job.js';
-
-export class UsersService {
-  constructor(private queue: QueueService) {}
-
-  async create(data: any) {
-    // ...
-    await this.queue.add('mail-queue', SendWelcomeEmailJob.name, {
-      email: data.email,
-      name: data.name
-    });
-  }
-}
+await queue.add('mail-queue', SendWelcomeEmailJob.name, {
+  email: user.email,
+  name: user.name,
+});
 ```
 
-## Opções de Job
+E depois registrar worker:
 
-- `name`: Nome único do job.
-- `handler`: Função que executa a lógica do job. Recebe o payload como argumento.
-- `timeoutMs`: Tempo máximo de execução em milissegundos.
-- `retries`: Número de tentativas em caso de falha.
+```ts
+workers.register('mail-queue', async (job) => {
+  await SendWelcomeEmailJob.handler(job.data);
+});
+```
+
+## Quando usar `defineJob()`
+
+Vale usar quando você quer:
+
+- padronizar payload e nome do job
+- manter job perto do domínio
+- reutilizar a mesma definição entre fila, testes e documentação
 
 ## Links relacionados
 
