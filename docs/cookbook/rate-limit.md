@@ -1,30 +1,46 @@
 # Rate Limiting e Segurança
 
-Proteger sua API contra abusos, ataques de força bruta e DoS (Denial of Service) é essencial. O V12 fornece ferramentas integradas para aplicar limites de requisição de forma simples.
+Este cookbook mostra como usar `pluginRateLimit()` no V12 e como combinar isso com outras medidas de proteção.
 
-## 1. Rate Limit Global
-
-A forma mais fácil de proteger sua aplicação é habilitar o plugin de rate limit no `createApp`.
+## 1. Rate limit global
 
 ```ts
-import { createApp, pluginRateLimit } from 'v12';
+import { createApp, pluginRateLimit } from '@eddiecbrl/v12';
 
 const app = await createApp({
   plugins: [
     pluginRateLimit({
-      max: 100, // Máximo de 100 requisições
-      timeWindow: '1 minute' // Por minuto
-    })
+      max: 100,
+      timeWindow: '1 minute',
+    }),
   ],
-  // ...
 });
 ```
 
-Este limite será aplicado a todos os endpoints do sistema baseado no endereço IP do cliente.
+Esse limite se aplica a toda a aplicação.
 
-## 2. Configurações Avançadas
+## 2. Configuração mais rígida para auth
 
-O `pluginRateLimit` aceita todas as opções do pacote `@fastify/rate-limit`, permitindo customizar como as chaves são geradas e qual a resposta de erro.
+Uma boa estratégia é usar limites mais duros em apps expostas à internet:
+
+```ts
+const app = await createApp({
+  plugins: [
+    pluginRateLimit({
+      max: 20,
+      timeWindow: '1 minute',
+    }),
+  ],
+  security: {
+    helmet: true,
+    cors: true,
+  },
+});
+```
+
+## 3. Configurações avançadas
+
+O plugin aceita opções do `@fastify/rate-limit`.
 
 ```ts
 pluginRateLimit({
@@ -32,28 +48,52 @@ pluginRateLimit({
   timeWindow: '1 minute',
   allowList: ['127.0.0.1'],
   continueExceeding: true,
-  skipOnError: true
+  skipOnError: true,
 })
 ```
 
-## 3. Segurança Adicional (Helmet)
+## 4. Redis para múltiplas instâncias
 
-O V12 habilita automaticamente o [Helmet](https://helmetjs.github.io/) por padrão, que configura diversos headers HTTP de segurança:
--   `X-Content-Type-Options: nosniff`
--   `X-Frame-Options: SAMEORIGIN`
--   `Strict-Transport-Security` (HSTS)
--   `Content-Security-Policy`
+Se a aplicação roda em mais de uma instância, convém usar Redis para o contador ficar compartilhado.
 
-## 4. Proteção contra Injeção
+```ts
+const app = await createApp({
+  redis: { url: 'redis://localhost:6379' },
+  plugins: [
+    pluginRateLimit({
+      max: 100,
+      timeWindow: '1 minute',
+    }),
+  ],
+});
+```
 
-Ao utilizar os plugins de Banco de Dados oficiais (`Prisma` ou `Drizzle`) e a validação `Zod` do V12, você já está protegido contra os ataques mais comuns:
+## 5. Combinando com auth
 
--   **SQL Injection**: Repositórios usam queries parametrizadas automaticamente.
--   **NoSQL Injection**: Validação de tipos garante que o input seja o esperado.
--   **Mass Assignment**: O V12 incentiva o uso de DTOs, garantindo que apenas campos permitidos sejam processados.
+Rate limit não substitui autenticação. O arranjo saudável costuma ser:
 
-## Resumo de Boas Práticas
+- `helmet`
+- `cors`
+- `jwt(...)` ou `apiKey(...)`
+- `pluginRateLimit(...)`
 
-1.  **Fail Fast**: Aplique limites restritos em rotas de autenticação.
-2.  **Use Redis**: Para rate limit em ambientes com múltiplas instâncias (cluster), configure o Redis no V12 para que o contador de requisições seja compartilhado.
-3.  **Monitore**: Fique de olho nos logs de `429 Too Many Requests` para identificar possíveis ataques ou necessidade de aumentar os limites para usuários legítimos.
+## 6. O que acompanhar
+
+Monitore:
+
+- respostas `429`
+- rotas mais atingidas
+- IPs ou clientes que mais estouram limite
+- impacto em login e webhooks
+
+## Boas práticas
+
+- seja mais rígido em login, reset de senha e webhooks
+- use Redis em ambiente distribuído
+- não aplique limite tão baixo que penalize usuários legítimos
+- combine rate limit com logs e observabilidade
+
+## Links relacionados
+
+- [Security API](/api/security)
+- [Observabilidade](/guides/observability)

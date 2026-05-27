@@ -100,6 +100,18 @@ O `v12` atingiu seu objetivo de ser um framework backend opinativo, simples e po
 - Audit Log
 - Multi-tenancy
 
+## Fase 14: Resiliência Nativa (Concluído)
+- Timeout pattern com AbortSignal
+- Fallback e Bulkhead (Semaphore)
+- Circuit Breaker distribuído (Redis)
+- Integração profunda com o Router
+
+## Fase 15: Evolução Estrutural (Concluído)
+- Refatoração para Fábricas Funcionais (Modularização)
+- Sistema de Plugins com Hooks de Ciclo de Vida (`onInit`, `onReady`, `onClose`)
+- Validação de Schema em Plugins (Zod)
+- Melhoria no isolamento do Container de DI
+
 ## Próximos Passos (Futuro)
 - **V12 Studio**: Interface visual para gerenciar módulos e visualizar o grafo de dependências.
 - **Serverless Adapters**: Otimizações específicas para deploy em AWS Lambda e Google Cloud Functions.

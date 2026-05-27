@@ -1,80 +1,144 @@
 # Sistema de Plugins
 
-O V12 é altamente extensível através de um sistema de plugins. Você pode criar seus próprios plugins para compartilhar funcionalidades entre diferentes aplicações ou para integrar bibliotecas externas.
+Este guia mostra quando vale a pena criar plugin no V12, como estruturar o ciclo de vida e como registrar funcionalidade global com o mínimo de atrito.
 
-## O Que é um Plugin?
+## Quando usar plugin
 
-Um plugin no V12 é uma função que recebe a instância da aplicação e pode registrar providers, middlewares, ou realizar qualquer configuração adicional.
+Plugin faz sentido quando você quer:
 
-```ts
-import type { AppInstance } from 'v12';
+- compartilhar funcionalidade entre apps
+- registrar providers globais
+- adicionar rotas ou hooks transversais
+- encapsular integração com ferramenta externa
 
-export const myPlugin = async (app: AppInstance) => {
-  // Registrar um provider global
-  app.container.register({
-    provide: 'MyService',
-    useClass: MyService
-  });
+Se a lógica pertence só a uma feature, normalmente um módulo comum resolve melhor.
 
-  // Adicionar um hook do Fastify
-  app.addHook('onRequest', async (request) => {
-    console.log('Plugin interceptou requisição');
-  });
-};
-```
-
-## Usando Plugins
-
-Para usar um plugin, basta passá-lo no array `plugins` ao criar a aplicação.
+## Primeiro plugin
 
 ```ts
-import { createApp } from 'v12';
-import { myPlugin } from './plugins/my-plugin.js';
+import { definePlugin } from '@eddiecbrl/v12';
 
-const app = await createApp({
-  plugins: [myPlugin],
+export const diagnosticsPlugin = definePlugin('diagnostics', async (app) => {
+  app.get('/diagnostics', async () => ({
+    uptime: process.uptime(),
+  }));
 });
 ```
 
-## Plugins Oficiais e do Ecossistema
-
-O V12 já vem com suporte facilitado para integração de plugins do Fastify, e alguns plugins core que podem ser habilitados:
-
-- `pluginRateLimit`: Controle de taxa de requisições (baseado no `@fastify/rate-limit`).
-- `pluginOpenApi`: Geração automática de documentação Swagger/Scalar (através da API de Swagger).
-- `pluginMultiTenancy`: Middleware para isolamento de tenants.
-
-## Criando Plugins com Opções
-
-Se o seu plugin precisar de configurações, você pode usar uma factory function.
+Uso:
 
 ```ts
-export type MyPluginOptions = {
-  apiKey: string;
-};
+import { createApp } from '@eddiecbrl/v12';
 
-export const myPlugin = (options: MyPluginOptions) => {
-  return async (app: AppInstance) => {
-    app.container.register({
-      provide: 'API_KEY',
-      useValue: options.apiKey
-    });
-  };
-};
-
-// Uso:
-createApp({
-  plugins: [myPlugin({ apiKey: '123' })]
-})
+const app = await createApp({
+  plugins: [diagnosticsPlugin],
+});
 ```
 
-## Quando Criar um Plugin?
+## Plugin com ciclo de vida
 
-- Quando você quer reutilizar uma lógica de container (DI) em múltiplos projetos.
-- Quando você quer integrar um plugin existente do Fastify mas precisa injetar dependências do V12 nele.
-- Quando você quer adicionar comportamentos globais à aplicação (hooks, decoradores).
+```ts
+import { definePlugin } from '@eddiecbrl/v12';
+
+export const lifecyclePlugin = definePlugin({
+  name: 'lifecycle-plugin',
+  onInit: async (app) => {
+    app.log.info('init');
+  },
+  register: async (app) => {
+    app.get('/plugin-check', async () => ({ ok: true }));
+  },
+  onReady: async (app) => {
+    app.log.info('ready');
+  },
+  onClose: async (app) => {
+    app.log.info('close');
+  },
+});
+```
+
+## Plugin com provider
+
+```ts
+import { definePlugin } from '@eddiecbrl/v12';
+
+class ClockService {
+  now() {
+    return new Date();
+  }
+}
+
+export const clockPlugin = definePlugin({
+  name: 'clock-plugin',
+  register: async (app) => {
+    app.container.register({
+      provide: 'ClockService',
+      useClass: ClockService,
+    });
+  },
+});
+```
+
+Depois, qualquer módulo pode resolver:
+
+```ts
+container.resolve('ClockService')
+```
+
+## Plugin com validação de configuração
+
+```ts
+import { definePlugin } from '@eddiecbrl/v12';
+import { z } from 'zod';
+
+export const externalApiPlugin = definePlugin({
+  name: 'external-api',
+  configSchema: z.object({
+    apiKey: z.string(),
+  }),
+  register: async (app) => {
+    app.log.info('external api plugin registered');
+  },
+});
+```
+
+Registro dinâmico:
+
+```ts
+await app.use(externalApiPlugin, {
+  apiKey: 'secret-123',
+});
+```
+
+## Fluxo mental útil
+
+Pense assim:
+
+1. o módulo é para domínio
+2. o plugin é para capacidade transversal
+
+Exemplos de bons candidatos a plugin:
+
+- documentação OpenAPI
+- telemetria externa
+- cliente compartilhado de parceiro
+- rota global de diagnóstico
+
+## Cuidados
+
+- não esconda regra de negócio importante dentro de plugin
+- escolha `name` único e estável
+- registre no container apenas o que realmente é global
+- use `configSchema` quando o plugin aceitar opções externas
+
+## Plugins que já aparecem no projeto
+
+- `pluginOpenApi()`
+
+Além disso, recursos como Redis, multipart e WebSocket são habilitados direto em `createApp()`, não como plugins V12 definidos por `definePlugin()`.
 
 ## Links relacionados
 
-- [createApp API](/api/create-app)
-- [Fastify Plugins](https://fastify.dev/docs/latest/Reference/Plugins/)
+- [Plugins API](/api/plugins)
+- [createApp](/api/create-app)
+- [Swagger/OpenAPI](/api/swagger)

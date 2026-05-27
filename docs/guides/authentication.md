@@ -1,100 +1,195 @@
 # Autenticação
 
+Este guia mostra os fluxos mais comuns de autenticação no V12 usando JWT, cookies, role-based access e API key.
 
+## O cenário mais comum
 
-A autenticação no V12 é projetada para ser simples e desacoplada da sua lógica de negócio. Este guia mostra como implementar fluxos comuns de segurança.
+Na maioria das APIs V12, o fluxo fica assim:
 
-## Autenticação via JWT
+1. login valida usuário e gera tokens
+2. token volta no body ou em cookie httpOnly
+3. rotas protegidas usam middleware `jwt(...)`
+4. rotas sensíveis podem adicionar `role(...)` e `apiKey(...)`
 
-O fluxo mais comum envolve receber um token no header `Authorization` e decodificá-lo para identificar o usuário.
-
-### 1. Configurando o AuthService
-
-Primeiro, registre o `AuthService` como um provider no seu módulo ou globalmente no `createApp`.
+## 1. Criando o `AuthService`
 
 ```ts
-import { AuthService } from 'v12';
+import { AuthService } from '@eddiecbrl/v12';
 
-const authService = new AuthService({
-  secret: process.env.JWT_SECRET,
+export const authService = new AuthService({
+  secret: process.env.JWT_SECRET!,
   expiresInSeconds: 3600,
-  cookieName: 'session_token'
+  refreshTokenExpiresInSeconds: 60 * 60 * 24,
+  cookieName: 'sid',
 });
 ```
 
-### 2. Criando o fluxo de Login
-
-No seu controller, use o `AuthService` para gerar os tokens.
+## 2. Implementando login
 
 ```ts
 class AuthController {
-  static inject = [AuthService, UsersService] as const;
-  constructor(private auth: AuthService, private users: UsersService) {}
+  static inject = [UsersService] as const;
 
-  login = async ({ request, reply }) => {
+  constructor(private readonly users: UsersService) {}
+
+  login = async ({ request, reply }: any) => {
     const user = await this.users.validate(request.body.email, request.body.password);
-    
-    const tokens = this.auth.generateTokens({ sub: user.id, role: user.role });
-    
-    // Opcional: define cookie httpOnly
-    this.auth.setSession(reply, tokens);
 
-    return tokens;
-  }
+    const auth = new AuthService({
+      secret: process.env.JWT_SECRET!,
+      expiresInSeconds: 3600,
+      refreshTokenExpiresInSeconds: 86400,
+      cookieName: 'sid',
+    });
+
+    const tokens = auth.generateTokens({
+      sub: user.id,
+      role: user.role,
+    });
+
+    auth.setSession(reply, tokens);
+
+    return {
+      user: {
+        id: user.id,
+        role: user.role,
+      },
+      tokens,
+    };
+  };
 }
 ```
 
-### 3. Protegendo Rotas
-
-Use o middleware `jwt` para proteger suas rotas. Ele automaticamente verifica o token e anexa o payload em `request.auth`.
+## 3. Protegendo rota com JWT
 
 ```ts
-import { jwt, role } from 'v12';
+import { createRouter, jwt } from '@eddiecbrl/v12';
+
+const router = createRouter();
 
 router.get('/profile', {
-  middlewares: [jwt({ secret: process.env.JWT_SECRET })],
+  middlewares: [
+    jwt({ secret: process.env.JWT_SECRET! }),
+  ],
   handler: ({ request }) => {
-    return { user: request.auth };
-  }
+    return {
+      auth: (request as any).auth,
+    };
+  },
 });
 ```
 
-## Controle de Acesso (RBAC)
+Depois da guard, o payload validado fica em `request.auth`.
 
-Você pode restringir o acesso a rotas específicas baseando-se em funções (roles).
+## 4. Lendo JWT por cookie
+
+Se você quiser usar cookie httpOnly:
 
 ```ts
+jwt({
+  secret: process.env.JWT_SECRET!,
+  cookieName: 'sid',
+})
+```
+
+Nesse caso, a guard tenta:
+
+1. cookie `sid`
+2. se não existir, `Authorization: Bearer ...`
+
+Para isso, a app precisa ter cookies habilitados:
+
+```ts
+createApp({
+  security: {
+    cookie: true,
+  },
+})
+```
+
+## 5. Controle por role
+
+```ts
+import { jwt, role } from '@eddiecbrl/v12';
+
 router.post('/admin/settings', {
   middlewares: [
-    jwt({ secret: process.env.JWT_SECRET }),
-    role('admin')
+    jwt({ secret: process.env.JWT_SECRET! }),
+    role('admin'),
   ],
-  handler: () => ({ status: 'admin access granted' })
+  handler: async () => ({ ok: true }),
 });
 ```
 
-## Autenticação via API Key
-
-Útil para integrações entre serviços (M2M).
+Também aceita múltiplas roles:
 
 ```ts
-import { apiKey } from 'v12';
+role(['admin', 'manager'])
+```
+
+## 6. Proteção por API key
+
+Boa para integrações internas, webhooks e M2M.
+
+```ts
+import { apiKey } from '@eddiecbrl/v12';
 
 router.post('/webhooks/payment', {
   middlewares: [
-    apiKey({ key: process.env.WEBHOOK_SECRET, headerName: 'X-Webhook-Token' })
+    apiKey({
+      key: process.env.WEBHOOK_SECRET!,
+      headerName: 'X-Webhook-Token',
+    }),
   ],
-  handler: () => ({ received: true })
+  handler: async () => ({ received: true }),
 });
 ```
 
-## Boas Práticas
+## 7. Combinando tudo
 
-- **Segredos**: Nunca deixe secrets no código. Use `process.env`.
-- **HttpOnly Cookies**: Para aplicações web, prefira cookies `httpOnly` para mitigar ataques XSS. O `AuthService` facilita isso com o método `setSession`.
-- **Desacoplamento**: Seus serviços de domínio não devem saber nada sobre headers ou tokens. Receba apenas o `userId` ou `userObject` já resolvido.
+```ts
+import { apiKey, createRouter, jwt, role } from '@eddiecbrl/v12';
+
+const router = createRouter();
+
+router.get('/internal-admin-report', {
+  middlewares: [
+    jwt({ secret: process.env.JWT_SECRET! }),
+    role('admin'),
+    apiKey({ key: process.env.INTERNAL_API_KEY! }),
+  ],
+  handler: ({ request }) => ({
+    sub: (request as any).auth?.sub,
+  }),
+});
+```
+
+## 8. Refresh token
+
+Se você usou `refreshTokenExpiresInSeconds`, o `AuthService` também gera refresh token.
+
+```ts
+const auth = new AuthService({
+  secret: process.env.JWT_SECRET!,
+  expiresInSeconds: 900,
+  refreshTokenExpiresInSeconds: 86400,
+  cookieName: 'sid',
+});
+
+const accessToken = auth.refresh(refreshToken);
+```
+
+## Boas práticas
+
+- deixe o secret fora do código
+- mantenha access token curto
+- use refresh token para renovação
+- prefira cookie httpOnly em aplicações web
+- use API key para contextos servidor-servidor
+- mantenha regra de autenticação na borda HTTP, não no service de domínio
 
 ## Links relacionados
 
-- [Auth API Reference](/api/auth)
-- [Security API Reference](/api/security)
+- [Auth API](/api/auth)
+- [Security API](/api/security)
+- [JWT Cookbook](/cookbook/jwt-auth)

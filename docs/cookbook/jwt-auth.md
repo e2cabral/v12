@@ -1,112 +1,146 @@
 # Autenticação JWT Completa
 
-Este guia mostra como implementar um fluxo de login e proteção de rotas usando JWT (JSON Web Token) no V12.
+Este cookbook mostra um fluxo prático de login, emissão de tokens e proteção de rotas com JWT no V12.
 
-## 1. Fluxo de Login
-
-O login consiste em validar as credenciais do usuário e gerar um token.
-
-### O Service de Auth
+## 1. Criando o serviço de autenticação
 
 ```ts
-import { BusinessError, AuthService, Inject } from 'v12';
-import { UsersRepository } from '../repositories/users.repository.js';
+import { AuthService } from '@eddiecbrl/v12';
 
-export class LoginService {
-  constructor(
-    private repository: UsersRepository,
-    private auth: AuthService
-  ) {}
+export const authService = new AuthService({
+  secret: process.env.JWT_SECRET!,
+  expiresInSeconds: 60 * 15,
+  refreshTokenExpiresInSeconds: 60 * 60 * 24,
+  cookieName: 'sid',
+});
+```
 
-  async execute({ email, password }) {
-    const user = await this.repository.findByEmail(email);
-    
-    // Em um app real, use bcrypt para comparar senhas!
-    if (!user || user.password !== password) {
-      throw new BusinessError('Credenciais inválidas', 401);
+## 2. Login
+
+```ts
+import { AppError } from '@eddiecbrl/v12';
+
+class LoginService {
+  static inject = [UsersRepository] as const;
+
+  constructor(private readonly repository: UsersRepository) {}
+
+  async execute(input: { email: string; password: string }) {
+    const user = await this.repository.findByEmail(input.email);
+
+    if (!user || user.password !== input.password) {
+      throw new AppError('Invalid credentials', {
+        statusCode: 401,
+        code: 'INVALID_CREDENTIALS',
+      });
     }
 
-    // Gera o token JWT
-    const token = await this.auth.generateToken({ 
-      id: user.id, 
-      email: user.email,
-      roles: user.roles 
+    return authService.generateTokens({
+      sub: user.id,
+      role: user.role,
     });
-
-    return { token, user };
   }
 }
 ```
 
-### A Rota de Login
+## 3. Rota de login
 
 ```ts
 router.post('/login', {
-  handler: async ({ request, container }) => {
-    const service = container.resolve(LoginService);
-    return service.execute(request.body);
-  }
+  handler: async ({ request, reply, container }) => {
+    const tokens = await container.resolve(LoginService).execute(
+      request.body as { email: string; password: string },
+    );
+
+    authService.setSession(reply, tokens);
+
+    return tokens;
+  },
 });
 ```
 
-## 2. Protegendo Rotas
+## 4. Protegendo rotas
 
-Para proteger uma rota, você deve usar o Guard de autenticação (`jwt`).
-
-### Proteção Simples (Qualquer usuário logado)
+### Qualquer usuário autenticado
 
 ```ts
-import { jwt } from 'v12';
+import { jwt } from '@eddiecbrl/v12';
 
 router.get('/profile', {
-  middlewares: [jwt({ secret: process.env.JWT_SECRET })],
-  handler: async ({ request }) => {
-    // O usuário autenticado fica disponível no request.auth
-    return request.auth;
-  }
+  middlewares: [
+    jwt({ secret: process.env.JWT_SECRET! }),
+  ],
+  handler: ({ request }) => ({
+    auth: (request as any).auth,
+  }),
 });
 ```
 
-### Proteção por Role (Apenas Admin)
+### Apenas admin
 
 ```ts
-import { jwt, role } from 'v12';
+import { jwt, role } from '@eddiecbrl/v12';
 
 router.get('/admin/stats', {
   middlewares: [
-    jwt({ secret: process.env.JWT_SECRET }),
-    role('admin')
+    jwt({ secret: process.env.JWT_SECRET! }),
+    role('admin'),
   ],
-  handler: async () => {
-    return { stats: '...' };
-  }
+  handler: async () => ({ stats: 'ok' }),
 });
 ```
 
-## 3. Configuração do JWT
+## 5. Usando cookie httpOnly
 
-Não esqueça de configurar o segredo do JWT no `createApp`.
+Se quiser autenticar por cookie:
 
 ```ts
 const app = await createApp({
-  auth: {
-    jwt: {
-      secret: getEnv('JWT_SECRET'),
-      expiresIn: '1d'
-    }
+  security: {
+    cookie: true,
   },
-  // ...
+  modules: [AuthModule],
 });
 ```
 
-## 4. Onde guardar o Token?
+E nas rotas protegidas:
 
--   **Frontend**: O recomendado é guardar o token em um **Cookie HttpOnly** para evitar ataques XSS, ou no `localStorage` se você implementar outras proteções.
--   **Headers**: O V12 espera o token no header `Authorization: Bearer <token>` por padrão.
+```ts
+jwt({
+  secret: process.env.JWT_SECRET!,
+  cookieName: 'sid',
+})
+```
 
-## Dicas de Segurança
+## 6. Refresh token
 
-1.  **Use HTTPS**: Nunca envie tokens JWT sobre conexões não criptografadas.
-2.  **Segredo Forte**: Use uma string longa e aleatória para o seu `JWT_SECRET`.
-3.  **Expiração Curta**: Mantenha o tempo de expiração do token o mais curto possível (ex: 15 minutos) e use Refresh Tokens para manter o usuário logado.
-4.  **Não guarde dados sensíveis**: O payload do JWT é visível por qualquer pessoa. Nunca coloque senhas ou dados bancários dentro dele.
+```ts
+router.post('/refresh', {
+  handler: async ({ request }) => {
+    const refreshToken = (request as any).cookies?.sid_refresh;
+    const accessToken = authService.refresh(refreshToken);
+    return { accessToken };
+  },
+});
+```
+
+## 7. Fluxo recomendado
+
+1. login valida credenciais
+2. `AuthService` gera access + refresh token
+3. cookies httpOnly são escritos com `setSession`
+4. rotas usam `jwt(...)`
+5. acesso sensível pode usar `role(...)`
+
+## Dicas
+
+- mantenha o access token curto
+- use HTTPS em produção
+- nunca coloque dados sensíveis no payload do JWT
+- prefira cookie httpOnly em apps web
+
+## Links relacionados
+
+- [Auth API](/api/auth)
+- [Security API](/api/security)
+- [Guia de Autenticação](/guides/authentication)

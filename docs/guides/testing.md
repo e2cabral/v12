@@ -1,91 +1,92 @@
 # Guia de Testes
 
-Testar aplicações V12 é simples e eficiente graças à injeção de dependência e ao utilitário `createTestingApp`.
+Testar aplicações V12 fica bem direto quando você separa unitários de integrações e usa `createTestingApp()` nos pontos certos.
 
-## Tipos de Teste
+## Estratégia simples
 
-### Testes Unitários
+### Teste unitário
 
-Focam em testar uma única classe ou função isoladamente. Use mocks para as dependências.
+Instancie a classe diretamente e use mocks leves.
 
 ```ts
-import { describe, it, expect, vi } from 'vitest';
-import { UsersService } from './users.service';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('UsersService', () => {
-  it('deve criar um usuário', async () => {
-    const mockRepo = { create: vi.fn().mockResolvedValue({ id: 1 }) };
+  it('creates a user', async () => {
+    const mockRepo = {
+      create: vi.fn().mockResolvedValue({ id: '1', name: 'Ada' }),
+    };
+
     const service = new UsersService(mockRepo as any);
-    
-    const result = await service.create({ name: 'João' });
-    
-    expect(result.id).toBe(1);
+    const result = await service.create({ name: 'Ada' });
+
+    expect(result.id).toBe('1');
     expect(mockRepo.create).toHaveBeenCalled();
   });
 });
 ```
 
-### Testes de Integração (API)
+### Teste de integração HTTP
 
-Testam a integração entre múltiplos componentes, geralmente disparando requisições HTTP reais contra uma instância da aplicação.
+Use `createTestingApp()` e `app.inject()`.
 
 ```ts
-import { describe, it, expect, beforeAll } from 'vitest';
-import { createTestingApp } from 'v12';
-import { AppModule } from '../src/app.module';
+import { describe, expect, it } from 'vitest';
+import { createTestingApp } from '@eddiecbrl/v12';
 
 describe('Users API', () => {
-  let app;
-
-  beforeAll(async () => {
-    app = await createTestingApp({
-      modules: [AppModule],
-      // Você pode sobrescrever providers aqui (ex: usar banco em memória)
+  it('GET /users returns 200', async () => {
+    const app = await createTestingApp({
+      modules: [UsersModule],
     });
-  });
 
-  it('GET /users deve retornar 200', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/users'
+      url: '/users',
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toBeInstanceOf(Array);
   });
 });
 ```
 
-## createTestingApp
+## Quando usar `createTestingApp()`
 
-O `createTestingApp` é um wrapper sobre o `createApp` que:
-1. Desabilita logs barulhentos por padrão.
-2. Facilita a sobrescrita de `providers` para uso de mocks ou stubs.
-3. Não inicia o servidor em uma porta TCP (usa o `inject` do Fastify para performance).
+Use quando você quer testar:
 
-## Sobrescrevendo Dependências
+- rotas
+- middlewares
+- guards
+- validação
+- DI
+- integração entre controller, service e repository
 
-Uma das maiores vantagens do V12 é a facilidade de trocar um serviço real por um mock durante os testes.
+## `overrides`
+
+`createTestingApp()` aceita `overrides` para trocar dependências.
 
 ```ts
 const app = await createTestingApp({
   modules: [BillingModule],
-  providers: [
-    { 
-      provide: PaymentGateway, 
-      useValue: { process: vi.fn().mockResolvedValue({ success: true }) } 
-    }
-  ]
+  overrides: [
+    {
+      provide: PaymentGateway,
+      useValue: {
+        process: vi.fn().mockResolvedValue({ success: true }),
+      },
+    },
+  ],
 });
 ```
 
-## Melhores Práticas
+## Dicas práticas
 
-- **Limpeza de Dados**: Se estiver usando um banco de dados real nos testes de integração, certifique-se de limpar os dados entre os testes.
-- **Evite Testar Implementação**: Foque em testar o comportamento e as saídas, não como o código está escrito internamente.
-- **Use Factory Functions**: Crie funções auxiliares para gerar dados de teste repetitivos.
+- use unitários para regra de negócio
+- use integração para garantir comportamento HTTP real
+- prefira `app.inject()` a subir servidor em porta
+- limpe dados quando usar banco real
 
 ## Links relacionados
 
-- [Testing API Reference](/api/testing)
+- [Testing API](/api/testing)
 - [Vitest](https://vitest.dev/)

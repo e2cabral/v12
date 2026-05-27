@@ -1,80 +1,116 @@
 # Configuration
 
-O V12 adota a filosofia de "Twelve-Factor App", onde a configuração é estritamente separada do código através de variáveis de ambiente.
+No V12, configuração entra cedo no bootstrap e deve falhar cedo quando algo essencial estiver faltando.
 
-## Variáveis de Ambiente
+## Modelo atual
 
-O framework carrega automaticamente arquivos `.env` localizados na raiz do projeto. Para acessar essas variáveis de forma segura, use o utilitário `getEnv`.
+O projeto usa builders de ambiente com `defineConfig()` e `env.*()`.
 
 ```ts
-import { getEnv } from 'v12';
+import { defineConfig, env } from '@eddiecbrl/v12';
 
-// Com valor padrão
-const port = getEnv('PORT', '3000');
+const config = defineConfig({
+  PORT: env.number().default(3000),
+  HOST: env.string().default('0.0.0.0'),
+  JWT_SECRET: env.string(),
+  ENABLE_DOCS: env.boolean().default(true),
+});
 
-// Obrigatória (lança erro se não encontrada em produção)
-const dbUrl = getEnv('DATABASE_URL');
+const parsed = config.parse();
 ```
 
-## Configuração Tipada
+## Por que isso ajuda
 
-Para projetos maiores, a recomendação é criar um objeto de configuração centralizado e registrá-lo no container de DI. Isso facilita a manutenção e permite validar os valores na inicialização.
+- tipa os valores na saída
+- faz coerção de número e boolean
+- concentra a definição de config
+- reduz parsing espalhado pelo projeto
+
+## Onde colocar
+
+Um arranjo simples:
+
+```txt
+src/
+  config/
+    app.config.ts
+  app.ts
+  server.ts
+```
+
+## Exemplo prático
+
+`src/config/app.config.ts`
 
 ```ts
-// src/config/app.config.ts
-import { getEnv } from 'v12';
+import { defineConfig, env } from '@eddiecbrl/v12';
 
-export const appConfig = {
-  port: Number(getEnv('PORT', '3000')),
-  nodeEnv: getEnv('NODE_ENV', 'development'),
-  jwt: {
-    secret: getEnv('JWT_SECRET'),
-    expiresIn: '1d'
-  }
-};
-
-// main.ts
-const app = await createApp({
-  providers: [
-    { provide: 'AppConfig', useValue: appConfig }
-  ],
-  // ...
+export const appConfig = defineConfig({
+  PORT: env.number().default(3000),
+  HOST: env.string().default('0.0.0.0'),
+  JWT_SECRET: env.string(),
 });
 ```
 
-## Uso de Providers de Configuração
-
-Ao injetar a configuração em seus services, você ganha facilidade para testes (mocking) e desacoplamento.
+`src/server.ts`
 
 ```ts
-export class AuthService {
-  constructor(@Inject('AppConfig') private config: typeof appConfig) {}
+import { buildApp } from './app.js';
+import { appConfig } from './config/app.config.js';
 
-  generateToken(user: User) {
-    return jwt.sign({ id: user.id }, this.config.jwt.secret);
-  }
+const bootstrap = async () => {
+  const envConfig = appConfig.parse();
+  const app = await buildApp();
+
+  await app.listen({
+    port: envConfig.PORT,
+    host: envConfig.HOST,
+  });
+};
+```
+
+## Registrando no container
+
+Se muitos services precisam da mesma config:
+
+```ts
+const parsedConfig = appConfig.parse();
+
+const app = await createApp({
+  providers: [
+    {
+      provide: 'AppConfig',
+      useValue: parsedConfig,
+    },
+  ],
+});
+```
+
+Depois:
+
+```ts
+class ExternalService {
+  static inject = ['AppConfig'] as const;
+
+  constructor(private readonly config: any) {}
 }
 ```
 
-## Configurações Reservadas
+## Defaults vs obrigatórios
 
-O core do V12 utiliza as seguintes chaves de ambiente:
+Uma regra saudável:
 
-- `NODE_ENV`: Define o comportamento de logs e erros (`development`, `production`, `test`).
-- `PORT`: Porta do servidor HTTP.
-- `LOG_LEVEL`: Nível de verbosidade do Logger.
-- `DATABASE_URL`: String de conexão para o plugin de banco de dados.
-- `REDIS_URL`: String de conexão para Cache e Queues.
+- defaults para host, porta e flags locais
+- obrigatórios para segredos, URLs críticas e chaves externas
 
-## Boas Práticas
+## Boas práticas
 
-- **Validação de Schema**: Use bibliotecas como `zod` ou `joi` para validar o objeto de configuração antes de iniciar o app.
-- **Fail Fast**: Se uma configuração essencial estiver faltando, o app deve parar imediatamente.
-- **Secrets**: Nunca commite arquivos `.env` ou segredos no Git. Use segredos do provedor de cloud ou arquivos `.env.example`.
-- **Defaults Sensatos**: Forneça valores padrão para ambiente de desenvolvimento, mas exija valores explícitos para produção.
+- centralize config
+- faça parse uma vez
+- não espalhe `process.env` pelo domínio
+- use tokens claros como `'AppConfig'`
 
 ## Links relacionados
 
 - [Config API](/api/config)
-- [createApp](/api/create-app)
-- [Dependency Injection](/concepts/containers)
+- [Containers](/concepts/containers)

@@ -1,97 +1,128 @@
 # Implementação de Webhooks
 
-Webhooks permitem que sua aplicação receba notificações em tempo real de serviços externos (como Stripe, GitHub ou WhatsApp). Este guia mostra como criar um endpoint de Webhook seguro e robusto.
+Webhooks pedem três coisas: resposta rápida, validação de origem e idempotência. Este cookbook monta esse fluxo no V12.
 
-## 1. Criando o Endpoint do Webhook
-
-Webhooks geralmente usam o método `POST`. É importante que o endpoint responda rapidamente (status 200) para evitar que o serviço de origem tente reenviar a notificação repetidamente.
+## 1. Endpoint mínimo
 
 ```ts
+import { createRouter } from '@eddiecbrl/v12';
+
+const router = createRouter();
+
 router.post('/stripe', {
   handler: async ({ request, container }) => {
-    // 1. Responder imediatamente
-    // O processamento pesado deve ser feito em background (Job ou Event)
-    const eventBus = container.resolve(EventBus);
-    eventBus.emit('webhook.stripe.received', request.body);
+    const events = container.resolve('EventBus');
+    events.emit('webhook.stripe.received', request.body);
 
     return { received: true };
-  }
+  },
 });
 ```
 
-## 2. Segurança: Validando a Assinatura
+Aqui a rota responde rápido e delega o processamento para um evento.
 
-Nunca confie cegamente nos dados enviados para um webhook. A maioria dos serviços envia uma assinatura no header para garantir que a requisição veio deles.
+## 2. Validando assinatura
 
 ```ts
-import { BusinessError } from 'v12';
 import crypto from 'node:crypto';
+import { UnauthorizedError } from '@eddiecbrl/v12';
 
-const stripeWebhookGuard = async ({ request }) => {
+const stripeWebhookGuard = async ({ request }: any) => {
   const signature = request.headers['stripe-signature'];
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-  // Exemplo simplificado de validação
   const expectedSignature = crypto
     .createHmac('sha256', secret)
     .update(JSON.stringify(request.body))
     .digest('hex');
 
   if (signature !== expectedSignature) {
-    throw new BusinessError('Assinatura inválida', 401);
+    throw new UnauthorizedError('Invalid webhook signature');
   }
 };
 
 router.post('/stripe', {
   middlewares: [stripeWebhookGuard],
-  handler: async ({ request }) => {
-    // Processar...
-  }
+  handler: async ({ request, container }) => {
+    const events = container.resolve('EventBus');
+    events.emit('webhook.stripe.received', request.body);
+    return { received: true };
+  },
 });
 ```
 
-## 3. Processamento Assíncrono (Jobs)
+## 3. Processamento assíncrono com fila
 
-Para Webhooks que disparam processos longos (como gerar uma nota fiscal ou enviar um e-mail), use o sistema de `Jobs` do V12.
+Quando o webhook dispara trabalho pesado:
 
 ```ts
 router.post('/payment-confirmed', {
   handler: async ({ request, container }) => {
     const queue = container.resolve(QueueService);
-    
-    // Adiciona o processamento na fila para ser executado por um Worker
+
     await queue.add('payments', 'process-webhook', request.body);
 
-    return { ok: true };
-  }
+    return { queued: true };
+  },
 });
 ```
 
-## 4. Gerenciando Idempotência
+## 4. Idempotência
 
-Serviços externos podem enviar o mesmo webhook mais de uma vez (retry). Sua aplicação deve ser capaz de lidar com isso sem duplicar dados.
+É comum o provedor reenviar o mesmo evento.
 
 ```ts
 export class WebhookService {
+  static inject = [WebhookLogsRepository] as const;
+
+  constructor(private readonly logs: WebhookLogsRepository) {}
+
   async handle(payload: any) {
     const eventId = payload.id;
-    
-    // 1. Verificar se já processamos este evento
-    const alreadyProcessed = await this.db.webhookLogs.findUnique({ where: { eventId } });
-    if (alreadyProcessed) return;
 
-    // 2. Processar a lógica
+    const alreadyProcessed = await this.logs.findByEventId(eventId);
+    if (alreadyProcessed) {
+      return;
+    }
+
     await this.processPayment(payload);
+    await this.logs.markProcessed(eventId);
+  }
 
-    // 3. Marcar como processado
-    await this.db.webhookLogs.create({ data: { eventId } });
+  async processPayment(payload: any) {
+    // regra de negócio
   }
 }
 ```
 
-## Resumo de Boas Práticas
+## 5. Event-driven after webhook
 
-1.  **Responda Rápido**: O serviço de origem geralmente tem um timeout curto (ex: 5-10 segundos).
-2.  **Valide Sempre**: Use segredos e assinaturas para evitar que atacantes forjem requisições.
-3.  **Fila de Processamento**: Use `Jobs` e `Redis` para garantir que nenhuma notificação seja perdida se o servidor estiver ocupado.
-4.  **Logs**: Guarde um log dos webhooks recebidos (payload e status) para facilitar a depuração se algo der errado.
+Você também pode conectar isso com `module.events`:
+
+```ts
+export const PaymentsModule = defineModule({
+  name: 'payments',
+  events: [
+    {
+      event: 'webhook.stripe.received',
+      handler: async (payload) => {
+        console.log('process webhook', payload);
+      },
+    },
+  ],
+});
+```
+
+## 6. Boas práticas
+
+- responda rápido
+- valide assinatura sempre
+- torne o processamento idempotente
+- envie tarefas pesadas para fila ou evento
+- registre logs do webhook recebido
+
+## Links relacionados
+
+- [Security API](/api/security)
+- [Events API](/api/events)
+- [Queue API](/api/queue)

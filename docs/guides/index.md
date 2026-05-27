@@ -1,25 +1,25 @@
 # Guias
 
-Nesta seção, você encontrará guias práticos para construir aplicações reais com o V12, cobrindo desde o setup inicial até o deploy em produção.
+Aqui ficam os guias práticos para montar aplicações reais com o V12.
 
 ## Trilhas principais
 
-- [Primeira Aplicação](/getting-started)
+- [Primeira aplicação](/getting-started)
 - [Autenticação](/guides/authentication)
-- [Banco de Dados](/guides/database)
-- [Multi-tenancy & Auditoria](/guides/multi-tenancy-audit)
+- [Banco de dados](/guides/database)
+- [Multi-tenancy & Audit](/guides/multi-tenancy-audit)
 - [Observabilidade](/guides/observability)
 - [Testes](/guides/testing)
 - [Deploy](/guides/deployment)
 - [Plugins](/guides/plugins)
+- [Resiliência](/guides/resilience)
 
-## Como ler esta seção
+## Ordem sugerida
 
-Se você é novo no framework, recomendamos seguir esta ordem:
-
-1. [Começando (Primeira Aplicação)](/getting-started)
+1. [Começando](/getting-started)
 2. [Autenticação](/guides/authentication)
-3. [Banco de Dados](/guides/database)
+3. [Banco de dados](/guides/database)
 4. [Testes](/guides/testing)
+5. [Deploy](/guides/deployment)
 
-Os guias assumem que você já compreende os [Conceitos](/concepts/) básicos do V12.
+Os guias assumem familiaridade básica com os [Conceitos](/concepts/).
