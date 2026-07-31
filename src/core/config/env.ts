@@ -16,6 +16,18 @@ const createEnvBuilder = <T extends z.ZodTypeAny>(schema: T): EnvBuilder<T> => (
   },
 });
 
+/**
+ * Builders de schema para variáveis de ambiente com coerção automática.
+ *
+ * @example
+ * ```ts
+ * const config = defineConfig({
+ *   PORT: env.number().default(3000),
+ *   DB_URL: env.string().required(),
+ *   DEBUG: env.boolean().default(false),
+ * });
+ * ```
+ */
 export const env = {
   string: () => createEnvBuilder(z.string()),
   number: () =>
@@ -27,6 +39,21 @@ export const env = {
   boolean: () => createEnvBuilder(z.coerce.boolean()),
 };
 
+/**
+ * Define e valida configuração tipada a partir de variáveis de ambiente usando Zod.
+ *
+ * @param shape - Objeto mapeando nomes de variáveis para builders `env.string()`, `env.number()`, etc.
+ * @returns Objeto com método `parse(source?)` que retorna a configuração validada e tipada.
+ *
+ * @example
+ * ```ts
+ * const config = defineConfig({
+ *   PORT: env.number().default(3000),
+ *   DATABASE_URL: env.string().required(),
+ * });
+ * const { PORT, DATABASE_URL } = config.parse();
+ * ```
+ */
 export const defineConfig = <T extends Record<string, EnvBuilder<z.ZodTypeAny>>>(
   shape: T,
 ) => {

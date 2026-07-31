@@ -4,6 +4,17 @@ export type AppErrorOptions = {
   details?: unknown;
 };
 
+/**
+ * Erro base da aplicação V12 com código HTTP, código interno e detalhes opcionais.
+ *
+ * @example
+ * ```ts
+ * throw new AppError('User not found', {
+ *   statusCode: 404,
+ *   code: 'USER_NOT_FOUND',
+ * });
+ * ```
+ */
 export class AppError extends Error {
   readonly statusCode: number;
   readonly code: string;
@@ -18,6 +29,16 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Erro de validação (HTTP 400) com detalhes dos campos inválidos.
+ *
+ * @example
+ * ```ts
+ * throw new ValidationError('Invalid input', [
+ *   { field: 'email', message: 'must be a valid email' },
+ * ]);
+ * ```
+ */
 export class ValidationError extends AppError {
   constructor(message = 'Validation failed', details?: unknown) {
     super(message, {
