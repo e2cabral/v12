@@ -6,7 +6,20 @@ import { CircuitBreaker, type CircuitBreakerOptions } from '../resilience/circui
 import { withTimeout, type TimeoutOptions } from '../resilience/timeout.js';
 import { withFallback, type FallbackOptions } from '../resilience/fallback.js';
 import { withBulkhead, type BulkheadOptions } from '../resilience/bulkhead.js';
+import type { TypedRequestContext, TypedRouteSchema } from './types.js';
 
+/**
+ * Contexto de requisição passado para handlers e middlewares de rota.
+ *
+ * @example
+ * ```ts
+ * router.get('/', {
+ *   handler: ({ container, request }) => {
+ *     return container.resolve(MyService).handle(request.body);
+ *   },
+ * });
+ * ```
+ */
 export type RequestContext = {
   request: FastifyRequest;
   reply: FastifyReply;
@@ -27,6 +40,19 @@ export type RouteResilience = {
   fallback?: FallbackOptions<any>;
 };
 
+/**
+ * Definição completa de uma rota HTTP no V12.
+ *
+ * @example
+ * ```ts
+ * const route: RouteDefinition = {
+ *   method: 'POST',
+ *   path: '/users',
+ *   schema: { body: createUserSchema },
+ *   handler: ({ container }) => container.resolve(UsersController).create(),
+ * };
+ * ```
+ */
 export type RouteDefinition = {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
@@ -34,6 +60,20 @@ export type RouteDefinition = {
   schema?: RouteSchema;
   middlewares?: RouteMiddleware[];
   handler: RouteHandler;
+  websocket?: boolean;
+  resilience?: RouteResilience;
+};
+
+/**
+ * A typed route configuration that infers handler context from the schema.
+ * When a schema is provided, the handler receives a TypedRequestContext
+ * with properly typed request.body, request.params, request.query, and request.headers.
+ */
+export type TypedRouteConfig<S extends TypedRouteSchema> = {
+  version?: string;
+  schema?: S;
+  middlewares?: RouteMiddleware[];
+  handler: (context: TypedRequestContext<S>) => Promise<unknown> | unknown;
   websocket?: boolean;
   resilience?: RouteResilience;
 };
@@ -51,22 +91,45 @@ const createRouteBuilder = (method: RouteDefinition['method']) => {
   });
 };
 
+/**
+ * Cria um router fluente para declaração de rotas HTTP.
+ *
+ * @param prefix - Prefixo opcional aplicado a todas as rotas do router.
+ * @returns Um builder com métodos get/post/put/patch/delete e build().
+ *
+ * @example
+ * ```ts
+ * const router = createRouter();
+ * router.get('/', { handler: ({ container }) => container.resolve(Ctrl).list() });
+ * const UsersModule = defineModule({ name: 'users', routes: router.build() });
+ * ```
+ */
 export const createRouter = (prefix?: string) => {
   const routes: RouteDefinition[] = [];
+
+  const addRoute = <S extends TypedRouteSchema>(
+    method: RouteDefinition['method'],
+    path: string,
+    definition: TypedRouteConfig<S>,
+  ) => {
+    return routes.push(
+      createRouteBuilder(method)(path, definition as unknown as Omit<RouteDefinition, 'method' | 'path'>),
+    );
+  };
 
   return {
     prefix,
     routes,
-    get: (path: string, definition: Omit<RouteDefinition, 'method' | 'path'>) =>
-      routes.push(createRouteBuilder('GET')(path, definition)),
-    post: (path: string, definition: Omit<RouteDefinition, 'method' | 'path'>) =>
-      routes.push(createRouteBuilder('POST')(path, definition)),
-    put: (path: string, definition: Omit<RouteDefinition, 'method' | 'path'>) =>
-      routes.push(createRouteBuilder('PUT')(path, definition)),
-    patch: (path: string, definition: Omit<RouteDefinition, 'method' | 'path'>) =>
-      routes.push(createRouteBuilder('PATCH')(path, definition)),
-    delete: (path: string, definition: Omit<RouteDefinition, 'method' | 'path'>) =>
-      routes.push(createRouteBuilder('DELETE')(path, definition)),
+    get: <S extends TypedRouteSchema>(path: string, definition: TypedRouteConfig<S>) =>
+      addRoute('GET', path, definition),
+    post: <S extends TypedRouteSchema>(path: string, definition: TypedRouteConfig<S>) =>
+      addRoute('POST', path, definition),
+    put: <S extends TypedRouteSchema>(path: string, definition: TypedRouteConfig<S>) =>
+      addRoute('PUT', path, definition),
+    patch: <S extends TypedRouteSchema>(path: string, definition: TypedRouteConfig<S>) =>
+      addRoute('PATCH', path, definition),
+    delete: <S extends TypedRouteSchema>(path: string, definition: TypedRouteConfig<S>) =>
+      addRoute('DELETE', path, definition),
     build(): RouterDefinition {
       return { prefix, routes };
     },
