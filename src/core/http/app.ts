@@ -29,18 +29,37 @@ import type { V12Plugin } from './plugin.js';
 import type { I18nOptions } from '../i18n/i18n.js';
 import { registerDevTools } from '../devtools/devtools.js';
 import { Telemetry, type TelemetryOptions } from '../telemetry/otel.js';
+import { MetricsRegistry, Gauge } from '../telemetry/metrics.js';
 import { getWelcomePage } from './welcome-page.js';
 import { initSecurity } from './factories/security-factory.js';
 import { initTelemetry } from './factories/telemetry-factory.js';
 import { initContainer } from './factories/container-factory.js';
 import { PluginRegistry } from './plugin-registry.js';
+import { setupGracefulShutdown, type ShutdownOptions } from './shutdown.js';
 
+/**
+ * Configuration options for creating a V12 application instance.
+ *
+ * @example
+ * ```ts
+ * const options: CreateAppOptions = {
+ *   modules: [UsersModule],
+ *   security: { cors: true, helmet: true },
+ * };
+ * ```
+ */
 export type CreateAppOptions = {
+  /** Módulos de feature a serem registrados na aplicação. */
   modules?: ModuleDefinition[];
+  /** Providers globais disponíveis em todos os módulos. */
   providers?: Provider[];
+  /** Middlewares globais executados em todas as rotas. */
   middlewares?: RouteMiddleware[];
+  /** Plugins V12 a serem registrados durante o bootstrap. */
   plugins?: V12Plugin[];
+  /** Opções nativas do Fastify (logger, bodyLimit, etc). */
   fastify?: FastifyServerOptions;
+  /** Configurações de segurança (CORS, Helmet, cookies, limites). */
   security?: {
     cors?: boolean | FastifyCorsOptions;
     helmet?: boolean | FastifyHelmetOptions;
@@ -48,21 +67,53 @@ export type CreateAppOptions = {
     requestTimeout?: number;
     cookie?: boolean | FastifyCookieOptions;
   };
+  /** Configuração do Redis (true para padrão, ou opções customizadas). */
   redis?: boolean | FastifyRedisPluginOptions;
+  /** Habilita upload de arquivos via multipart. */
   upload?: boolean | any;
+  /** Habilita suporte a WebSocket. */
   websocket?: boolean | any;
+  /** Opções de internacionalização (i18n). */
   i18n?: I18nOptions;
+  /** Configuração de telemetria e OpenTelemetry. */
   telemetry?: TelemetryOptions;
+  /** Configuração de graceful shutdown. */
+  shutdown?: ShutdownOptions | boolean;
 };
 
+/**
+ * Instância da aplicação V12 — estende FastifyInstance com DI, eventos e plugins.
+ *
+ * @example
+ * ```ts
+ * const app = await createApp({ modules: [PingModule] });
+ * app.container.resolve(MyService);
+ * ```
+ */
 export type AppInstance = FastifyInstance & {
   container: Container;
   events: EventBus;
   modules: ModuleDefinition[];
   telemetry?: Telemetry;
+  shutdown: () => Promise<void>;
   use: (plugin: V12Plugin) => Promise<AppInstance>;
 };
 
+/**
+ * Creates a new V12 application instance with the given configuration.
+ *
+ * @param options - Application configuration including modules, plugins, and security settings.
+ * @returns A configured Fastify instance extended with V12 features.
+ *
+ * @example
+ * ```ts
+ * const app = await createApp({
+ *   modules: [UsersModule],
+ *   security: { cors: true },
+ * });
+ * await app.listen({ port: 3000 });
+ * ```
+ */
 export const createApp = async ({
   modules = [],
   providers = [],
@@ -75,6 +126,7 @@ export const createApp = async ({
   websocket: websocketOption,
   i18n: i18nOptions,
   telemetry: telemetryOptions,
+  shutdown: shutdownOption,
 }: CreateAppOptions = {}): Promise<AppInstance> => {
   const app = Fastify({
     ...fastify,
@@ -133,10 +185,19 @@ export const createApp = async ({
     );
   });
 
-  const metrics = {
-    requestsTotal: 0,
-    errorsTotal: 0,
-  };
+  const metricsRegistry = new MetricsRegistry();
+  const httpRequestsTotal = metricsRegistry.createCounter(
+    'http_requests_total',
+    'Total number of HTTP requests',
+  );
+  const httpRequestDuration = metricsRegistry.createHistogram(
+    'http_request_duration_seconds',
+    'HTTP request duration in seconds',
+  );
+  const httpErrorsTotal = metricsRegistry.createCounter(
+    'http_errors_total',
+    'Total number of HTTP errors',
+  );
 
   const pluginRegistry = new PluginRegistry(app);
   const eventRegistry = new EventRegistry(events, container);
@@ -155,7 +216,7 @@ export const createApp = async ({
   });
 
   app.addHook('onRequest', async (request) => {
-    metrics.requestsTotal++;
+    (request as any).__startTime = process.hrtime.bigint();
     const headers = request.headers as Record<string, string | string[] | undefined>;
     headers['x-request-id'] ??= randomUUID();
   });
@@ -168,9 +229,22 @@ export const createApp = async ({
   });
 
   app.addHook('onResponse', async (request, reply) => {
+    const path = (request.routeOptions as any)?.url || request.url;
+    const method = request.method;
+    const status = String(reply.statusCode);
+
+    httpRequestsTotal.inc({ method, path, status });
+
     if (reply.statusCode >= 400) {
-      metrics.errorsTotal++;
+      httpErrorsTotal.inc({ method, path, status });
     }
+
+    const startTime = (request as any).__startTime as bigint | undefined;
+    if (startTime) {
+      const duration = Number(process.hrtime.bigint() - startTime) / 1e9;
+      httpRequestDuration.observe({ method, path }, duration);
+    }
+
     app.log.info(
       {
         method: request.method,
@@ -184,7 +258,6 @@ export const createApp = async ({
   });
 
   app.setErrorHandler((error: any, _request, reply) => {
-    metrics.errorsTotal++;
     if (error instanceof AppError) {
       return fail(reply, error.code, error.message, error.statusCode, error.details);
     }
@@ -238,15 +311,31 @@ export const createApp = async ({
     }),
   );
 
-  app.get('/metrics', async (_request, reply) =>
-    reply.type('text/plain').send(
-      [
-        `v12_requests_total ${metrics.requestsTotal}`,
-        `v12_errors_total ${metrics.errorsTotal}`,
-        `v12_uptime_seconds ${process.uptime()}`,
-      ].join('\n'),
-    ),
-  );
+  app.get('/metrics', async (_request, reply) => {
+    const uptimeGauge = new Gauge(
+      'process_uptime_seconds',
+      'Process uptime in seconds',
+    );
+    uptimeGauge.set({}, process.uptime());
+
+    const heapGauge = new Gauge(
+      'nodejs_heap_bytes',
+      'Node.js heap memory usage in bytes',
+    );
+    const mem = process.memoryUsage();
+    heapGauge.set({ space: 'rss' }, mem.rss);
+    heapGauge.set({ space: 'heap_total' }, mem.heapTotal);
+    heapGauge.set({ space: 'heap_used' }, mem.heapUsed);
+    heapGauge.set({ space: 'external' }, mem.external);
+
+    const output = [
+      metricsRegistry.serialize(),
+      uptimeGauge.serialize(),
+      heapGauge.serialize(),
+    ].join('\n');
+
+    return reply.type('text/plain; charset=utf-8').send(output);
+  });
 
   for (const plugin of plugins) {
     await app.use(plugin);
@@ -321,6 +410,16 @@ export const createApp = async ({
       app.route(routeOptions);
     }
   }
+
+  // Setup graceful shutdown
+  const shutdownOpts: ShutdownOptions =
+    shutdownOption === false
+      ? { enabled: false }
+      : shutdownOption === true || shutdownOption === undefined
+        ? {}
+        : shutdownOption;
+
+  setupGracefulShutdown(app, shutdownOpts);
 
   return app;
 };

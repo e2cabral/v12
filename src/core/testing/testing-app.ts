@@ -7,6 +7,21 @@ export type CreateTestingAppOptions = {
   overrides?: Provider[];
 } & Omit<CreateAppOptions, 'modules' | 'providers'>;
 
+/**
+ * Cria uma instância da aplicação configurada para testes — sem logs, sem shutdown, com overrides de DI.
+ *
+ * @param options - Configuração de teste incluindo módulos e providers de override.
+ * @returns Uma AppInstance pronta para testes de integração.
+ *
+ * @example
+ * ```ts
+ * const app = await createTestingApp({
+ *   modules: [UsersModule],
+ *   overrides: [{ provide: DB, useValue: mockDb }],
+ * });
+ * const res = await app.inject({ method: 'GET', url: '/users' });
+ * ```
+ */
 export const createTestingApp = async ({
   modules = [],
   overrides = [],
@@ -16,6 +31,7 @@ export const createTestingApp = async ({
     ...rest,
     modules,
     providers: overrides,
+    shutdown: false,
     fastify: {
       logger: false,
       ...(rest.fastify ?? {}),
