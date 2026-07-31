@@ -20,7 +20,11 @@ export function initContainer({
   redis,
 }: ContainerFactoryOptions) {
   const container = new Container();
-  const events = new EventBus();
+  const events = new EventBus({
+    onError: (event, error) => {
+      logger.error({ event, err: error }, `[EventBus] Error in handler for "${event}"`);
+    },
+  });
   const i18nService = new I18nService(i18nOptions || { defaultLocale: 'en' });
   const auditService = new AuditService(logger);
 
