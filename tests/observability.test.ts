@@ -35,6 +35,8 @@ describe('Observability', () => {
 
     expect(metricsResponse.statusCode).toBe(200);
     const text = metricsResponse.body;
-    expect(text).toContain('v12_requests_total 2'); // 1 for /test/test, 1 for /metrics
+    expect(text).toContain('# HELP http_requests_total Total number of HTTP requests');
+    expect(text).toContain('# TYPE http_requests_total counter');
+    expect(text).toContain('http_requests_total{method="GET",path="/test/test",status="200"} 1');
   });
 });
