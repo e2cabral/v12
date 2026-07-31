@@ -129,8 +129,13 @@ describe('Enterprise Features (Fase 13)', () => {
 
   it('initializes OpenTelemetry when enabled', async () => {
     // Apenas verificando se nao quebra e se o decorate funciona
+    // Desabilitamos autoInstrumentations para o teste ser rápido
     const app = await createApp({
-      telemetry: { serviceName: 'test-app', enabled: true }
+      telemetry: { 
+        serviceName: 'test-app', 
+        enabled: true,
+        autoInstrumentations: false 
+      }
     });
     
     expect(app.telemetry).toBeDefined();

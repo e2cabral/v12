@@ -9,6 +9,7 @@ export type TelemetryOptions = {
   url?: string; // OTLP Collector URL
   enabled?: boolean;
   debug?: boolean;
+  autoInstrumentations?: boolean;
 };
 
 export class Telemetry {
@@ -39,7 +40,9 @@ export class Telemetry {
             exporter: metricExporter,
           })
         : undefined,
-      instrumentations: [getNodeAutoInstrumentations()],
+      instrumentations: this.options.autoInstrumentations !== false 
+        ? [getNodeAutoInstrumentations()] 
+        : [],
     });
 
     try {
