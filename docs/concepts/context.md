@@ -4,33 +4,31 @@ O `RequestContext` é um dos conceitos mais importantes do V12. Ele representa o
 
 ## O que contém o Context?
 
-Sempre que um handler de rota ou um middleware é executado, o V12 injeta um objeto de contexto que contém:
+Sempre que um handler de rota é executado, o V12 injeta um objeto de contexto que contém:
 
-- **request**: O objeto de requisição do Fastify (headers, body, query, params).
-- **reply**: O objeto de resposta do Fastify.
+- **request**: O objeto `FastifyRequest` (headers, body, query, params).
+- **reply**: O objeto `FastifyReply` para controlar a resposta.
 - **container**: Um container de DI **local** (Child Container), criado especificamente para esta requisição.
 - **t**: Função auxiliar para internacionalização (i18n), já configurada com o locale do usuário.
-- **logger**: Uma instância do logger com o `requestId` já injetado nos metadados.
+- **connection**: A conexão WebSocket (presente apenas em rotas com `websocket: true`).
+- **signal**: Um `AbortSignal` injetado quando há configuração de resiliência com timeout.
 
 ## Uso em Handlers
 
 O contexto é passado como o primeiro argumento para a função `handler`.
 
 ```ts
-router.get('/me', {
+router.get('/products', {
   handler: async ({ request, container, t }) => {
-    // request contém os dados da requisição
-    const userId = request.user.id;
-
     // container resolve dependências no escopo da requisição
-    const userService = container.resolve(UsersService);
-    const user = await userService.findById(userId);
+    const productService = container.resolve(ProductsService);
+    const products = await productService.findAll();
 
     return {
-      message: t('welcome'),
-      user
+      message: t('products.listed'),
+      data: products,
     };
-  }
+  },
 });
 ```
 
@@ -41,28 +39,38 @@ A propriedade `container` dentro do `RequestContext` é um "Child Container". Is
 2. Ele permite registrar providers que vivem apenas durante a requisição (ex: o usuário autenticado).
 3. Ele é limpo automaticamente assim que a resposta é enviada.
 
-## Estendendo o Contexto
+## WebSocket e Signal
 
-Você pode adicionar propriedades customizadas ao contexto através de middlewares.
+Para rotas WebSocket, o contexto inclui `connection`:
 
 ```ts
-const myMiddleware = async (ctx) => {
-  ctx.customData = 'Algum valor';
-};
+router.get('/stream', {
+  websocket: true,
+  handler: async ({ connection }) => {
+    connection.socket.send('connected');
+  },
+});
+```
 
-router.get('/test', {
-  middlewares: [myMiddleware],
-  handler: async (ctx) => {
-    console.log(ctx.customData); // 'Algum valor'
-  }
+Quando a rota possui configuração de resiliência com `timeout`, o contexto inclui `signal`:
+
+```ts
+router.get('/external', {
+  resilience: {
+    timeout: { ms: 5_000 },
+  },
+  handler: async ({ signal, container }) => {
+    const service = container.resolve(ExternalService);
+    return service.fetch({ signal });
+  },
 });
 ```
 
 ## Boas Práticas
 
 - **Use desestruturação**: Facilita a leitura do que o handler realmente utiliza: `async ({ request, container }) => { ... }`.
-- **Prefira o Container para Lógica**: Evite colocar muita lógica diretamente no contexto; use-o para resolver Services que contêm a lógica.
-- **Acesse o Logger pelo Contexto**: Usar o `ctx.logger` garante que todos os logs daquela requisição compartilhem o mesmo `x-request-id`, facilitando o rastreamento em produção.
+- **Prefira o Container para Lógica**: Evite colocar muita lógica diretamente no handler; use o container para resolver Services que contêm a lógica.
+- **Delegue ao Controller**: Mantenha o handler curto, resolvendo o controller e chamando o método adequado.
 
 ## Links relacionados
 

@@ -129,11 +129,59 @@ Uso:
 router.post('/', {
   schema: createUserSchema,
   handler: ({ request, container }) =>
-    container.resolve(UsersController).create({
-      request: { body: request.body as z.infer<typeof createUserSchema.body> },
-    }),
+    container.resolve(UsersController).create(request.body),
 });
 ```
+
+Quando o `schema` está presente, o tipo de `request.body`, `request.params`, `request.query` e `request.headers` é inferido automaticamente a partir dos schemas Zod fornecidos.
+
+## Rotas Tipadas
+
+A partir da v1.0, o `createRouter` infere os tipos de `request` automaticamente com base no `schema` fornecido. Isso elimina a necessidade de casts manuais como `request.body as T`.
+
+### Antes (v0.x)
+
+```ts
+router.post('/', {
+  schema: createUserSchema,
+  handler: ({ request, container }) =>
+    container.resolve(UsersController).create(request.body as CreateUserInput),
+});
+```
+
+### Agora (v1.0)
+
+```ts
+router.post('/', {
+  schema: createUserSchema,
+  handler: ({ request, container }) =>
+    // request.body já é do tipo z.infer<typeof createUserSchema.body>
+    container.resolve(UsersController).create(request.body),
+});
+```
+
+### Como funciona
+
+Quando você passa um objeto `schema` com propriedades Zod (`body`, `params`, `querystring`, `headers`), o TypeScript infere o tipo de cada propriedade correspondente em `request`:
+
+```ts
+const schema = {
+  body: z.object({ name: z.string() }),
+  params: z.object({ id: z.string().uuid() }),
+  querystring: z.object({ page: z.coerce.number().default(1) }),
+};
+
+router.get('/:id', {
+  schema,
+  handler: ({ request }) => {
+    request.body;        // { name: string }
+    request.params;      // { id: string }
+    request.query;       // { page: number }
+  },
+});
+```
+
+Isso funciona porque a definição de rota é genérica sobre o tipo do schema. Se nenhum schema é fornecido, os tipos padrão do Fastify são usados.
 
 ## `middlewares`
 

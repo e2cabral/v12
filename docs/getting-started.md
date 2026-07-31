@@ -90,7 +90,6 @@ export class ProductsService {
 `src/features/products/products.controller.ts`
 
 ```ts
-import type { RequestContext } from '@eddiecbrl/v12';
 import { ProductsService } from './products.service.js';
 import type { CreateProductInput } from './products.schemas.js';
 
@@ -101,8 +100,8 @@ export class ProductsController {
 
   list = async () => this.service.findAll();
 
-  create = async ({ request }: RequestContext) =>
-    this.service.create(request.body as CreateProductInput);
+  create = async (data: CreateProductInput) =>
+    this.service.create(data);
 }
 ```
 
@@ -124,13 +123,13 @@ router.get('/', {
 router.post('/', {
   schema: createProductSchema,
   handler: ({ container, request }) =>
-    container.resolve(ProductsController).create({ request } as any),
+    container.resolve(ProductsController).create(request.body),
 });
 
 export const productsRoutes = router.build();
 ```
 
-> Repare num detalhe importante: os métodos do router não são encadeáveis no estado atual da API. O padrão correto é declarar cada rota e só então chamar `build()`.
+> Quando você fornece um `schema` com `body`, o tipo de `request.body` é inferido automaticamente pelo Zod — sem necessidade de casts manuais.
 
 ## 7. Defina o módulo
 

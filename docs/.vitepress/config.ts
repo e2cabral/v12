@@ -21,7 +21,7 @@ export default defineConfig({
       {
         text: 'Versão',
         items: [
-          { text: 'v0.1 (current)', link: '/' },
+          { text: 'v1.0 (current)', link: '/' },
           { text: 'Roadmap', link: '/roadmap/' },
         ],
       },
@@ -136,6 +136,7 @@ export default defineConfig({
           { text: 'Performance', link: '/performance/' },
           { text: 'Segurança', link: '/api/security' },
           { text: 'Migração', link: '/migration/' },
+          { text: 'Migração v1.0', link: '/migration/v1' },
           { text: 'FAQ', link: '/faq/' },
           { text: 'Glossário', link: '/glossary' },
           { text: 'Roadmap', link: '/roadmap/' },
